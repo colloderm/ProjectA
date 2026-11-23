@@ -1,0 +1,8 @@
+---,Name,Amount,Cost,CostGrowth
+hp,체력 단련,"(HP=25)",200,1.18
+atk,근력 훈련,"(ATK=4)",250,1.20
+def,방어 훈련,"(DEF=3)",220,1.20
+spd,민첩 훈련,"(SPD=2)",240,1.22
+crit,집중 훈련,"(CRIT=2)",300,1.25
+dodge,회피 훈련,"(DODGE=2)",300,1.25
+special,비전 수련,"(SPECIAL=2)",320,1.25

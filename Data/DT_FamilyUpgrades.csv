@@ -1,0 +1,6 @@
+---,Name,StatPercentPerLevel,GoldPercentPerLevel,XPPercentPerLevel,MaxLevel,Cost,CostGrowth
+atk,가문의 힘,"(ATK=3)",0,0,10,2,1.35
+def,가문의 방패,"(DEF=3)",0,0,10,2,1.35
+hp,가문의 혈통,"(HP=3)",0,0,10,2,1.35
+gold,가문의 부,"(HP=0)",5,0,10,3,1.40
+xp,가문의 지혜,"(HP=0)",0,5,10,3,1.40

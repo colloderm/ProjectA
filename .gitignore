@@ -74,3 +74,21 @@ Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+# ---- ProjectA 추가 ----
+# IDE 개인 설정 (Rider / VS Code)
+.idea/
+*.DotSettings.user
+.vscode/
+*.code-workspace
+
+# Claude Code 개인 설정 (프로젝트 규칙 CLAUDE.md는 커밋)
+.claude/settings.local.json
+
+# 에디터 개인 폴더 (개발자별 테스트 에셋·컬렉션)
+Content/Developers/
+Content/Collections/
+
+# 크래시 덤프
+*.stackdump
+*.dmp
