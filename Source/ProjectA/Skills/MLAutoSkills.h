@@ -8,6 +8,7 @@
 
 class AMLSkillVisualActor;
 class AMLProjectileActor;
+class AMLEnemyActor;
 struct FOnAttributeChangeData;
 
 // ---------- 회전 칼날: 쿨타임마다 지속시간 동안 영웅 주위를 도는 칼날 (CooldownByLevel이 비면 상시형 = 진화 칼날 폭풍) ----------
@@ -48,6 +49,30 @@ private:
 	FTimerHandle PulseStepHandle;
 	float PulseElapsed = 0.f;
 	static constexpr float PulseStepSeconds = 0.03f;
+
+	void FireShots();
+
+	// 천 개의 칼날 (3단계, M9-1c): 0이면 끔. 이 주기(초)마다 칼날마다 바깥 방향으로 칼날 탄 1발
+	UPROPERTY(EditDefaultsOnly, Category = "Blades|Shots")
+	float ShotInterval = 0.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Blades|Shots")
+	TSubclassOf<AMLProjectileActor> ShotClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Blades|Shots")
+	float ShotDamageMult = 1.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Blades|Shots")
+	float ShotSpeed = 1100.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Blades|Shots")
+	float ShotRange = 800.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Blades|Shots")
+	float ShotHitRadius = 50.f;
+
+	FTimerHandle ShotTimerHandle;
+	int32 VerifyShotFires = 0; // MLVerify(M9-1c): M9-2에서 제거
 
 	// RotatingMovementComponent가 있는 BP (yaw 속도 = 궤도 속도), 메시는 필요 없음
 	UPROPERTY(EditDefaultsOnly, Category = "Blades")
@@ -126,9 +151,35 @@ public:
 	UMLSkill_ThunderStrike();
 
 protected:
+	virtual void OnAcquired() override;
 	virtual void Fire() override;
 
 private:
+	// 대상 적 머리 위에 낙뢰 1발 + 그 자리에서 연쇄. 범위 피해로 맞힌 수를 반환
+	int32 StrikeAt(int32 TargetIndex, float StrikeDamage, float ChainDamage);
+	void StartStorm();
+	void StormStrike();
+
+	// 뇌신강림 (3단계, M9-1c): 0이면 끔. 이 주기(초)마다 StormSeconds 동안 StormRange 안에 낙뢰 StormStrikes발 (항상 치명타)
+	UPROPERTY(EditDefaultsOnly, Category = "Thunder|Storm")
+	float StormInterval = 0.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Thunder|Storm")
+	int32 StormStrikes = 10;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Thunder|Storm")
+	float StormSeconds = 2.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Thunder|Storm")
+	float StormRange = 1500.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Thunder|Storm")
+	float StormDamageMult = 1.6f;
+
+	FTimerHandle StormTimerHandle;
+	FTimerHandle StormStrikeHandle;
+	int32 StormLeft = 0;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Thunder")
 	TArray<int32> StrikeCountByLevel = { 3, 4, 5 };
 
@@ -250,11 +301,36 @@ public:
 	virtual void Release() override;
 
 protected:
+	virtual void OnAcquired() override;
 	virtual void Fire() override;
 	virtual void OnShieldBroken() override;
 
 private:
 	void StepNovaVisual();
+	void CastGlacier();
+
+	// 절대 영도 (3단계, M9-1c): 0이면 끔. 이 주기(초)마다 GlacierRadius 안 모든 적을 결빙 + 큰 피해
+	UPROPERTY(EditDefaultsOnly, Category = "FrostNova|Glacier")
+	float GlacierInterval = 0.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "FrostNova|Glacier")
+	float GlacierRadius = 1500.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "FrostNova|Glacier")
+	float GlacierFreezeSeconds = 2.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "FrostNova|Glacier")
+	float GlacierDamageMult = 2.f;
+
+	// 화면 전체 원판 (0.5초 표시). 액터 스케일 1에서 반경 = NovaVisualBaseRadius
+	UPROPERTY(EditDefaultsOnly, Category = "FrostNova|Glacier")
+	TSubclassOf<AMLSkillVisualActor> GlacierVisualClass;
+
+	UPROPERTY(Transient)
+	TObjectPtr<AMLSkillVisualActor> GlacierVisual;
+
+	FTimerHandle GlacierTimerHandle;
+	FTimerHandle GlacierHideHandle;
 
 	UPROPERTY(EditDefaultsOnly, Category = "FrostNova")
 	TArray<float> NovaRadiusByLevel = { 350.f, 380.f, 420.f };
@@ -431,6 +507,25 @@ protected:
 private:
 	void TickAura();
 	void DropFlame();
+	void HandleEnemyKilled(const AMLEnemyActor* Killed, bool bElite);
+	void ProcessBursts();
+
+	// 연옥 (3단계, M9-1c): 오라 안에서 죽은 적이 폭발. 폭발로 죽은 적도 다시 폭발 (0.1초 간격 연쇄)
+	UPROPERTY(EditDefaultsOnly, Category = "Aura|Burst")
+	bool bDeathBurst = false;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Aura|Burst")
+	float BurstRadius = 150.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Aura|Burst")
+	float BurstDamageMult = 0.8f;
+
+	// 한 번(0.1초)에 처리하는 폭발 수 상한: 큰 무리에서 연쇄가 한 프레임에 몰리지 않게
+	UPROPERTY(EditDefaultsOnly, Category = "Aura|Burst")
+	int32 MaxBurstsPerStep = 20;
+
+	TArray<FVector> PendingBursts;
+	FTimerHandle BurstTimerHandle;
 
 	// 영웅에 붙는 원판. 액터 스케일 1에서 반경 = VisualBaseRadius
 	UPROPERTY(EditDefaultsOnly, Category = "Aura")
@@ -472,8 +567,4 @@ private:
 
 	FTimerHandle AuraTimerHandle;
 	FTimerHandle FlameTimerHandle;
-
-	// MLVerify(M9-1b): M9-1c에서 제거
-	int32 VerifyTicks = 0;
-	int32 VerifyHits = 0;
 };

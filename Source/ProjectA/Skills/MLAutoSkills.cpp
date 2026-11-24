@@ -4,6 +4,7 @@
 
 #include "DrawDebugHelpers.h"
 #include "Enemy/MLEnemySubsystem.h"
+#include "Enemy/MLEnemyActor.h"
 #include "Engine/World.h"
 #include "Skills/MLSkillVisualActor.h"
 #include "TimerManager.h"
@@ -42,6 +43,10 @@ void UMLSkill_Blades::OnAcquired()
 	{
 		World->GetTimerManager().SetTimer(PulseTimerHandle, this, &UMLSkill_Blades::StartPulse, PulseInterval, true);
 	}
+	if (ShotInterval > 0.f)
+	{
+		World->GetTimerManager().SetTimer(ShotTimerHandle, this, &UMLSkill_Blades::FireShots, ShotInterval, true);
+	}
 }
 
 void UMLSkill_Blades::StartPulse()
@@ -52,9 +57,37 @@ void UMLSkill_Blades::StartPulse()
 
 	PulseElapsed = 0.f;
 	World->GetTimerManager().SetTimer(PulseStepHandle, this, &UMLSkill_Blades::StepPulse, PulseStepSeconds, true);
+}
 
-	// MLVerify(M9-1b): M9-1c에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Blade pulse: blades=%d radius %.0f -> %.0f in %.1fs"), Blades.Num(), OrbitRadius, PulseRadius, PulseSeconds);
+void UMLSkill_Blades::FireShots()
+{
+	UWorld* World = GetWorld();
+	const UMLEnemySubsystem* EnemySub = GetEnemySubsystem();
+	UMLProjectileSubsystem* ProjectileSub = World ? World->GetSubsystem<UMLProjectileSubsystem>() : nullptr;
+	if (!Pivot || !ProjectileSub || !bBladesActive || IsHeroDead() || !EnemySub || EnemySub->GetActiveCount() == 0) return;
+
+	FMLProjectileLaunch Shot;
+	Shot.ProjectileClass = ShotClass;
+	Shot.Damage = RollDamage(ShotDamageMult);
+	Shot.HitRadius = ShotHitRadius;
+	Shot.MaxRange = ShotRange;
+	Shot.Source = GetDamageSource();
+
+	int32 Launched = 0;
+	const FVector Center = Pivot->GetActorLocation();
+	for (const TObjectPtr<AMLSkillVisualActor>& Blade : Blades)
+	{
+		if (!Blade) continue;
+		Shot.Start = Blade->GetActorLocation();
+		Shot.Velocity = (Shot.Start - Center).GetSafeNormal2D() * ShotSpeed; // 칼날 위치에서 바깥 방향
+		if (ProjectileSub->Launch(Shot)) ++Launched;
+	}
+
+	// MLVerify(M9-1c): M9-2에서 제거 — 6번마다 요약
+	if (++VerifyShotFires % 6 == 1)
+	{
+		UE_LOG(LogTemp, Display, TEXT("[MLVerify] Blade shots: %s launched=%d interval=%.2f"), *GetSkillName().ToString(), Launched, ShotInterval);
+	}
 }
 
 void UMLSkill_Blades::StepPulse()
@@ -240,36 +273,77 @@ void UMLSkill_ThunderStrike::Fire()
 	const int32 StrikeCount = FMath::Min(LevelValue(StrikeCountByLevel), Candidates.Num());
 	const float StrikeDamage = RollDamage(LevelValue(StrikeDamageMultByLevel));
 	const float ChainDamage = RollDamage(LevelValue(ChainDamageMultByLevel));
-	const int32 CandidateCount = Candidates.Num();
-	int32 Strikes = 0;
-	int32 StrikeHits = 0;
 
-	TArray<int32> Chained;
 	for (int32 s = 0; s < StrikeCount && Candidates.Num() > 0; ++s)
 	{
 		const int32 Pick = FMath::RandRange(0, Candidates.Num() - 1);
-		const int32 TargetIndex = Candidates[Pick];
+		StrikeAt(Candidates[Pick], StrikeDamage, ChainDamage);
 		Candidates.RemoveAtSwap(Pick);
-		if (!EnemySub->IsEnemyActive(TargetIndex)) continue; // 앞선 낙뢰에 이미 죽음
+	}
+}
 
-		const FVector Ground = EnemySub->GetEnemyLocation(TargetIndex);
+int32 UMLSkill_ThunderStrike::StrikeAt(int32 TargetIndex, float StrikeDamage, float ChainDamage)
+{
+	UMLEnemySubsystem* EnemySub = GetEnemySubsystem();
+	if (!EnemySub || !EnemySub->IsEnemyActive(TargetIndex)) return 0; // 앞선 낙뢰에 이미 죽음
+
+	const FVector Ground = EnemySub->GetEnemyLocation(TargetIndex);
 #if ENABLE_DRAW_DEBUG
-		// shortcut: 디버그 선·원을 낙뢰 시각 효과로 사용, M10에서 Niagara로 교체
-		DrawDebugLine(GetWorld(), Ground + FVector(0.f, 0.f, 700.f), Ground, FColor(255, 240, 120), false, 0.25f, 0, 10.f);
-		DrawDebugCircle(GetWorld(), Ground, StrikeRadius, 24, FColor(255, 240, 120), false, 0.25f, 0, 4.f, FVector(1.f, 0.f, 0.f), FVector(0.f, 1.f, 0.f), false);
+	// shortcut: 디버그 선·원을 낙뢰 시각 효과로 사용, M10에서 Niagara로 교체
+	DrawDebugLine(GetWorld(), Ground + FVector(0.f, 0.f, 700.f), Ground, FColor(255, 240, 120), false, 0.25f, 0, 10.f);
+	DrawDebugCircle(GetWorld(), Ground, StrikeRadius, 24, FColor(255, 240, 120), false, 0.25f, 0, 4.f, FVector(1.f, 0.f, 0.f), FVector(0.f, 1.f, 0.f), false);
 #endif
-		StrikeHits += EnemySub->DamageInRadius(Ground, StrikeRadius, StrikeDamage, GetDamageSource());
-		++Strikes;
+	const int32 Hits = EnemySub->DamageInRadius(Ground, StrikeRadius, StrikeDamage, GetDamageSource());
 
-		// 맞은 지점에서 근처 적에게 연쇄 (낙뢰 중심의 적은 건너뜀)
-		Chained.Reset();
-		Chained.Add(TargetIndex);
-		ChainFrom(Ground, ChainRange, ChainPerStrike, ChainDamage, Chained);
+	// 맞은 지점에서 근처 적에게 연쇄 (낙뢰 중심의 적은 건너뜀)
+	TArray<int32> Chained;
+	Chained.Add(TargetIndex);
+	ChainFrom(Ground, ChainRange, ChainPerStrike, ChainDamage, Chained);
+	return Hits;
+}
+
+void UMLSkill_ThunderStrike::OnAcquired()
+{
+	Super::OnAcquired();
+	if (StormInterval > 0.f)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(StormTimerHandle, this, &UMLSkill_ThunderStrike::StartStorm, StormInterval, true);
+		}
+	}
+}
+
+void UMLSkill_ThunderStrike::StartStorm()
+{
+	UWorld* World = GetWorld();
+	const UMLEnemySubsystem* EnemySub = GetEnemySubsystem();
+	if (!World || IsHeroDead() || !EnemySub || EnemySub->GetActiveCount() == 0 || StormStrikes <= 0) return;
+
+	StormLeft = StormStrikes;
+	World->GetTimerManager().SetTimer(StormStrikeHandle, this, &UMLSkill_ThunderStrike::StormStrike, FMath::Max(0.05f, StormSeconds / StormStrikes), true);
+
+	// MLVerify(M9-1c): M9-2에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Thunder storm: strikes=%d over %.1fs range=%.0f"), StormStrikes, StormSeconds, StormRange);
+}
+
+void UMLSkill_ThunderStrike::StormStrike()
+{
+	UWorld* World = GetWorld();
+	AActor* Hero = GetHero();
+	UMLEnemySubsystem* EnemySub = GetEnemySubsystem();
+	if (!World || !Hero || !EnemySub || IsHeroDead() || --StormLeft < 0)
+	{
+		if (World) World->GetTimerManager().ClearTimer(StormStrikeHandle);
+		return;
 	}
 
-	// MLVerify(M9-1b): M9-1c에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Thunder strike: lv=%d strikes=%d candidates=%d areaHits=%d"),
-		GetSkillLevel(), Strikes, CandidateCount, StrikeHits);
+	TArray<int32> Candidates;
+	EnemySub->GetEnemiesInRange(Hero->GetActorLocation(), StormRange, Candidates);
+	if (Candidates.Num() == 0) return;
+
+	// 뇌신강림 낙뢰는 항상 치명타
+	StrikeAt(Candidates[FMath::RandRange(0, Candidates.Num() - 1)], RollDamage(StormDamageMult, true), RollDamage(LevelValue(ChainDamageMultByLevel), true));
 }
 
 // ======================= 화염 장판 =======================
@@ -446,8 +520,8 @@ void UMLSkill_FrostNova::Fire()
 
 	const FVector Center = Hero->GetActorLocation();
 	NovaTargetRadius = LevelValue(NovaRadiusByLevel);
-	const int32 Hits = EnemySub->DamageInRadius(Center, NovaTargetRadius, RollDamage(LevelValue(NovaDamageMultByLevel)), GetDamageSource());
-	const int32 Frozen = EnemySub->SlowInRadius(Center, NovaTargetRadius, 0.f, FreezeSeconds);
+	EnemySub->DamageInRadius(Center, NovaTargetRadius, RollDamage(LevelValue(NovaDamageMultByLevel)), GetDamageSource());
+	EnemySub->SlowInRadius(Center, NovaTargetRadius, 0.f, FreezeSeconds);
 
 	if (NovaVisualClass)
 	{
@@ -467,9 +541,55 @@ void UMLSkill_FrostNova::Fire()
 		}
 	}
 
-	// MLVerify(M9-1b): M9-1c에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] FrostNova: lv=%d radius=%.0f hits=%d frozen=%d shield=%.0f"), GetSkillLevel(), NovaTargetRadius, Hits, Frozen,
-		ASC ? ASC->GetNumericAttribute(UMLAttributeSet::GetShieldAttribute()) : 0.f);
+}
+
+void UMLSkill_FrostNova::OnAcquired()
+{
+	Super::OnAcquired();
+	if (GlacierInterval > 0.f)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(GlacierTimerHandle, this, &UMLSkill_FrostNova::CastGlacier, GlacierInterval, true);
+		}
+	}
+}
+
+void UMLSkill_FrostNova::CastGlacier()
+{
+	UWorld* World = GetWorld();
+	AActor* Hero = GetHero();
+	UMLEnemySubsystem* EnemySub = GetEnemySubsystem();
+	if (!World || !Hero || !EnemySub || IsHeroDead() || EnemySub->GetActiveCount() == 0) return;
+
+	// 결빙 먼저: 피해로 죽지 않은 적이 확실히 멈추도록
+	const FVector Center = Hero->GetActorLocation();
+	const int32 Frozen = EnemySub->SlowInRadius(Center, GlacierRadius, 0.f, GlacierFreezeSeconds);
+	const int32 Hits = EnemySub->DamageInRadius(Center, GlacierRadius, RollDamage(GlacierDamageMult), GetDamageSource());
+
+	if (GlacierVisualClass)
+	{
+		if (!GlacierVisual)
+		{
+			FActorSpawnParameters SpawnInfo;
+			SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			GlacierVisual = World->SpawnActor<AMLSkillVisualActor>(GlacierVisualClass, Center, FRotator::ZeroRotator, SpawnInfo);
+		}
+		if (GlacierVisual)
+		{
+			const float Scale = GlacierRadius / FMath::Max(1.f, NovaVisualBaseRadius);
+			GlacierVisual->SetActorLocation(Center);
+			GlacierVisual->SetActorScale3D(FVector(Scale, Scale, 1.f));
+			GlacierVisual->SetActorHiddenInGame(false);
+			World->GetTimerManager().SetTimer(GlacierHideHandle, FTimerDelegate::CreateWeakLambda(this, [this]()
+			{
+				if (GlacierVisual) GlacierVisual->SetActorHiddenInGame(true);
+			}), 0.5f, false);
+		}
+	}
+
+	// MLVerify(M9-1c): M9-2에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Glacier: radius=%.0f frozen=%d hits=%d"), GlacierRadius, Frozen, Hits);
 }
 
 void UMLSkill_FrostNova::StepNovaVisual()
@@ -514,9 +634,6 @@ void UMLSkill_FrostNova::OnShieldBroken()
 		Shot.Velocity = FRotator(0.f, AngleOffset + 360.f * i / Count, 0.f).Vector() * ShardSpeed;
 		ProjectileSub->Launch(Shot);
 	}
-
-	// MLVerify(M9-1b): M9-1c에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] FrostNova shield broken: shards=%d"), Count);
 }
 
 void UMLSkill_FrostNova::Release()
@@ -525,6 +642,11 @@ void UMLSkill_FrostNova::Release()
 	{
 		NovaVisual->Destroy();
 		NovaVisual = nullptr;
+	}
+	if (GlacierVisual)
+	{
+		GlacierVisual->Destroy();
+		GlacierVisual = nullptr;
 	}
 	Super::Release();
 }
@@ -645,6 +767,13 @@ void UMLSkill_Aura::OnAcquired()
 	{
 		World->GetTimerManager().SetTimer(FlameTimerHandle, this, &UMLSkill_Aura::DropFlame, FlameInterval, true);
 	}
+	if (bDeathBurst)
+	{
+		if (UMLEnemySubsystem* EnemySub = GetEnemySubsystem())
+		{
+			EnemySub->OnEnemyKilled.AddUObject(this, &UMLSkill_Aura::HandleEnemyKilled);
+		}
+	}
 }
 
 void UMLSkill_Aura::OnLevelChanged()
@@ -662,32 +791,71 @@ void UMLSkill_Aura::TickAura()
 	UMLEnemySubsystem* EnemySub = GetEnemySubsystem();
 	if (!Hero || !EnemySub || IsHeroDead()) return;
 
-	const int32 Hits = EnemySub->DamageInRadius(Hero->GetActorLocation(), LevelValue(RadiusByLevel), RollDamage(LevelValue(TickDamageMultByLevel)), GetDamageSource());
+	EnemySub->DamageInRadius(Hero->GetActorLocation(), LevelValue(RadiusByLevel), RollDamage(LevelValue(TickDamageMultByLevel)), GetDamageSource());
 
-	int32 ActiveFlames = 0;
 	const float FlameDamage = RollDamage(FlameTickDamageMult);
 	for (FMLFlamePatch& Flame : Flames)
 	{
 		if (Flame.TimeLeft <= 0.f) continue;
 
 		EnemySub->DamageInRadius(Flame.Center, FlameRadius, FlameDamage, GetDamageSource());
-		++ActiveFlames;
 		Flame.TimeLeft -= TickInterval;
 		if (Flame.TimeLeft <= 0.f && Flame.Actor)
 		{
 			Flame.Actor->SetActorHiddenInGame(true);
 		}
 	}
+}
 
-	// MLVerify(M9-1b): M9-1c에서 제거 — 5초(10틱)마다 요약
-	VerifyHits += Hits;
-	if (++VerifyTicks >= 10)
+void UMLSkill_Aura::HandleEnemyKilled(const AMLEnemyActor* Killed, bool bElite)
+{
+	UWorld* World = GetWorld();
+	const AActor* Hero = GetHero();
+	if (!World || !Hero || !Killed || IsHeroDead()) return;
+
+	// 처치 이벤트는 피해 처리 도중에 불리므로, 위치만 모아 두고 0.1초 뒤에 폭발 (재귀 방지)
+	const FVector Location = Killed->GetActorLocation();
+	if (FVector::DistSquared2D(Hero->GetActorLocation(), Location) > FMath::Square(LevelValue(RadiusByLevel))) return;
+
+	PendingBursts.Add(Location);
+	if (!World->GetTimerManager().IsTimerActive(BurstTimerHandle))
 	{
-		UE_LOG(LogTemp, Display, TEXT("[MLVerify] Aura tick: %s lv=%d radius=%.0f hits(5s)=%d flames=%d"),
-			*GetSkillName().ToString(), GetSkillLevel(), LevelValue(RadiusByLevel), VerifyHits, ActiveFlames);
-		VerifyTicks = 0;
-		VerifyHits = 0;
+		World->GetTimerManager().SetTimer(BurstTimerHandle, this, &UMLSkill_Aura::ProcessBursts, 0.1f, false);
 	}
+}
+
+void UMLSkill_Aura::ProcessBursts()
+{
+	UWorld* World = GetWorld();
+	UMLEnemySubsystem* EnemySub = GetEnemySubsystem();
+	if (!World || !EnemySub || IsHeroDead())
+	{
+		PendingBursts.Reset();
+		return;
+	}
+
+	// 이번 단계 몫만 떼어 냄: 폭발로 죽은 적은 PendingBursts 뒤에 쌓여 다음 단계에서 연쇄
+	const int32 Count = FMath::Min(PendingBursts.Num(), FMath::Max(1, MaxBurstsPerStep));
+	TArray<FVector> Batch(PendingBursts.GetData(), Count);
+	PendingBursts.RemoveAt(0, Count);
+
+	const float Damage = RollDamage(BurstDamageMult);
+	for (const FVector& Center : Batch)
+	{
+#if ENABLE_DRAW_DEBUG
+		// shortcut: 디버그 원을 폭발 시각 효과로 사용, M10에서 Niagara로 교체
+		DrawDebugCircle(World, Center, BurstRadius, 20, FColor(255, 90, 20), false, 0.2f, 0, 4.f, FVector(1.f, 0.f, 0.f), FVector(0.f, 1.f, 0.f), false);
+#endif
+		EnemySub->DamageInRadius(Center, BurstRadius, Damage, GetDamageSource());
+	}
+
+	if (PendingBursts.Num() > 0 && !World->GetTimerManager().IsTimerActive(BurstTimerHandle))
+	{
+		World->GetTimerManager().SetTimer(BurstTimerHandle, this, &UMLSkill_Aura::ProcessBursts, 0.1f, false);
+	}
+
+	// MLVerify(M9-1c): M9-2에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Purgatory burst: bursts=%d pending=%d"), Count, PendingBursts.Num());
 }
 
 void UMLSkill_Aura::DropFlame()
@@ -722,6 +890,11 @@ void UMLSkill_Aura::DropFlame()
 
 void UMLSkill_Aura::Release()
 {
+	if (UMLEnemySubsystem* EnemySub = GetEnemySubsystem())
+	{
+		EnemySub->OnEnemyKilled.RemoveAll(this);
+	}
+	PendingBursts.Reset();
 	if (AuraVisual)
 	{
 		AuraVisual->Destroy();

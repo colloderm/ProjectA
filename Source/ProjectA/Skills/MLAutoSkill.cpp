@@ -105,8 +105,8 @@ bool UMLAutoSkill::IsHeroDead() const
 	return !ASC || ASC->HasMatchingGameplayTag(MLTags::State_Dead.GetTag());
 }
 
-float UMLAutoSkill::RollDamage(float DamageMult) const
+float UMLAutoSkill::RollDamage(float DamageMult, bool bForceCrit) const
 {
 	const UAbilitySystemComponent* ASC = GetHeroASC();
-	return ASC ? MLCombat::RollHeroDamage(*ASC, DamageMult) : 0.f;
+	return ASC ? MLCombat::RollHeroDamage(*ASC, DamageMult, bForceCrit) : 0.f;
 }
