@@ -32,7 +32,6 @@ namespace
 UMLRunProgressComponent::UMLRunProgressComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
-	HealChoiceText = NSLOCTEXT("ML", "HealChoice", "Heal\nRestore 30% HP");
 }
 
 void UMLRunProgressComponent::InitForPlayer(APlayerController* PC)
@@ -116,7 +115,7 @@ FText UMLRunProgressComponent::GetChoiceText(int32 ChoiceIndex) const
 	const FMLPassiveRow* Row = (PassiveTable && !Choice.PassiveRow.IsNone())
 		? PassiveTable->FindRow<FMLPassiveRow>(Choice.PassiveRow, TEXT("MLRunProgress"))
 		: nullptr;
-	if (!Row) return HealChoiceText;
+	if (!Row) return FText::Format(NSLOCTEXT("ML", "HealChoice", "<Name>회복</>\n<Desc>HP {0} 회복</>"), FText::AsPercent(FallbackHealPercent));
 
 	return FText::Format(ChoiceFormat, Row->DisplayName, FText::AsNumber(Choice.NextLevel), Row->Description);
 }
@@ -487,7 +486,7 @@ FText UMLRunProgressComponent::GetRestChoiceText(const FMLLevelUpChoice& Choice)
 		return NSLOCTEXT("ML", "RestUpgradeNone", "<Name>기술 강화</>\n<Dim>강화할 기술 없음</>");
 
 	default:
-		return NSLOCTEXT("ML", "RestHeal", "<Name>회복</>\n<Desc>HP 50% 회복</>");
+		return FText::Format(NSLOCTEXT("ML", "RestHeal", "<Name>회복</>\n<Desc>HP {0} 회복</>"), FText::AsPercent(RestHealPercent));
 	}
 }
 
@@ -708,7 +707,7 @@ FText UMLRunProgressComponent::GetShopItemText(int32 Index) const
 	}
 
 	const FText Label = Item.Kind == EMLShopItemKind::Potion
-		? NSLOCTEXT("ML", "ShopPotion", "회복약 (HP 30%)")
+		? FText::Format(NSLOCTEXT("ML", "ShopPotion", "회복약 (HP {0})"), FText::AsPercent(FallbackHealPercent))
 		: FText::Format(NSLOCTEXT("ML", "ShopOffer", "{0}  Lv{1}{2}"), GetTargetName(Item.Target), FText::AsNumber(Item.Target.NextLevel),
 			Item.Target.NextLevel == 1 ? NSLOCTEXT("ML", "ShopNew", " (신규)") : FText::GetEmpty());
 

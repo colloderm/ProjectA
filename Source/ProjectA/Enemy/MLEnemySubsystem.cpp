@@ -43,14 +43,26 @@ bool UMLEnemySubsystem::SpawnEnemy(TSubclassOf<AMLEnemyActor> EnemyClass, const 
 
 	if (!Slot)
 	{
-		if (Enemies.Num() >= MaxEnemies) return false;
+		// 풀이 가득 차면 다른 클래스의 비활성 칸을 교체: 구역마다 적 종류가 달라도 이전 구역 칸이 스폰을 막지 않게
+		if (Enemies.Num() >= MaxEnemies)
+		{
+			Slot = Enemies.FindByPredicate([](const FMLEnemyEntry& E) { return !E.bActive; });
+			if (!Slot) return false;
+		}
 
 		FActorSpawnParameters SpawnInfo;
 		SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		AMLEnemyActor* NewEnemy = GetWorld()->SpawnActor<AMLEnemyActor>(EnemyClass, Location, FRotator::ZeroRotator, SpawnInfo);
-		if (!NewEnemy) return false;
+		if (!NewEnemy) return false; // 실패하면 기존 칸은 그대로 둠
 
-		Slot = &Enemies.AddDefaulted_GetRef();
+		if (Slot)
+		{
+			if (Slot->Actor) Slot->Actor->Destroy();
+		}
+		else
+		{
+			Slot = &Enemies.AddDefaulted_GetRef();
+		}
 		Slot->Actor = NewEnemy;
 	}
 

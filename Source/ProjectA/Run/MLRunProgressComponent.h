@@ -125,8 +125,6 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UMLRunHUDWidget> HUDWidgetClass;
 
-	UPROPERTY(EditDefaultsOnly, Category = "UI")
-	FText HealChoiceText;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UMLShopWidget> ShopWidgetClass;
