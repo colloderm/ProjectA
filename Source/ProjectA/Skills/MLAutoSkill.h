@@ -47,7 +47,7 @@ protected:
 	UAbilitySystemComponent* GetHeroASC() const;
 	UMLEnemySubsystem* GetEnemySubsystem() const;
 	bool IsHeroDead() const;
-	float RollDamage(float DamageMult) const;
+	float RollDamage(float DamageMult, bool bForceCrit = false) const;
 	float GetEffectiveCooldown() const; // 0 = 발동 안 함
 	
 	// 피해 리포트 키: 진화 기술은 별도 클래스라서 별도 줄로 표시 (design §6 HUD, M9-0)
