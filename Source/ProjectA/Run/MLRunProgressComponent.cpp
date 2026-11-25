@@ -13,6 +13,7 @@
 #include "GAS/MLGameplayTags.h"
 #include "Guild/MLGuildSubsystem.h"
 #include "Kismet/GameplayStatics.h"
+#include "UI/MLGuildUIText.h"
 #include "UI/MLLevelUpWidget.h"
 #include "UI/MLRunHUDWidget.h"
 #include "UI/MLShopWidget.h"
@@ -76,15 +77,25 @@ void UMLRunProgressComponent::AddGold(int32 Amount)
 
 void UMLRunProgressComponent::AddChest(int32 Step)
 {
-	const UGameInstance* GI = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
-	const UMLGuildSubsystem* Guild = GI ? GI->GetSubsystem<UMLGuildSubsystem>() : nullptr;
 	int32 Tier = 0;
-	const FName ItemId = Guild ? Guild->RollItem(Step, Tier) : NAME_None;
-	if (ItemId.IsNone()) return; // ItemTable 미설정
+	if (const UMLGuildSubsystem* Guild = GetGuild()) AddRunItem(Guild->RollItem(Step, Tier));
+}
+
+void UMLRunProgressComponent::AddRunItem(FName ItemId)
+{
+	const UMLGuildSubsystem* Guild = GetGuild();
+	const FMLItemRow* Item = Guild ? Guild->FindItem(ItemId) : nullptr;
+	if (!Item) return; // ItemTable 미설정 또는 없는 행
 
 	RunItems.Add(ItemId);
-	RunItemTierTotal += Tier;
+	RunItemTierTotal += Item->Tier;
 	OnProgressChanged.Broadcast(); // HUD 아이템 수 / 탐욕
+}
+
+const UMLGuildSubsystem* UMLRunProgressComponent::GetGuild() const
+{
+	const UGameInstance* GI = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+	return GI ? GI->GetSubsystem<UMLGuildSubsystem>() : nullptr;
 }
 
 FText UMLRunProgressComponent::GetChoiceText(int32 ChoiceIndex) const
@@ -147,6 +158,12 @@ void UMLRunProgressComponent::SelectChoice(int32 ChoiceIndex)
 	else
 	{
 		CloseLevelUp();
+		if (PendingGraveItems.Num() > 0)
+		{
+			const TArray<FName> ItemIds = MoveTemp(PendingGraveItems);
+			PendingGraveItems.Reset();
+			OpenGraveChoices(ItemIds);
+		}
 	}
 }
 
@@ -464,11 +481,47 @@ void UMLRunProgressComponent::OpenRestChoices()
 	}
 }
 
+void UMLRunProgressComponent::OpenGraveChoices(const TArray<FName>& ItemIds)
+{
+	// 마지막 보석이 같은 프레임에 레벨업을 열었을 수 있음: 그 선택지를 덮어쓰지 않고 닫힌 뒤 엶
+	if (bLevelUpOpen)
+	{
+		PendingGraveItems = ItemIds;
+		// MLVerify(M9-3): 다음 마일스톤에서 제거
+		UE_LOG(LogTemp, Display, TEXT("[MLVerify] Grave choice deferred (level up open)"));
+		return;
+	}
+
+	Choices.Reset();
+	for (const FName& ItemId : ItemIds)
+	{
+		FMLLevelUpChoice& Choice = Choices.AddDefaulted_GetRef();
+		Choice.RestAction = EMLRestAction::TakeItem;
+		Choice.ItemId = ItemId;
+	}
+
+	bRestMode = true;
+	if (Choices.Num() == 0 || !ShowChoiceWidget())
+	{
+		bRestMode = false;
+		OnRestFinished.Broadcast(); // UI 미설정: 선택을 건너뜀
+	}
+}
+
 FText UMLRunProgressComponent::GetRestChoiceText(const FMLLevelUpChoice& Choice) const
 {
 	const UMLAutoSkill* Skill = Choice.SkillClass ? FindOwnedSkill(Choice.SkillClass) : nullptr;
 	switch (Choice.RestAction)
 	{
+	case EMLRestAction::TakeItem:
+		{
+			const UMLGuildSubsystem* Guild = GetGuild();
+			const FMLItemRow* Item = Guild ? Guild->FindItem(Choice.ItemId) : nullptr;
+			if (!Item) return FText::FromName(Choice.ItemId);
+			return FText::Format(NSLOCTEXT("ML", "GraveItem", "<Name>{0}</>\n<Dim>{1} · {2}티어 · 요구 등급 {3}</>\n<Desc>{4}</>"),
+				Item->Name, MLGuildUI::SlotText(Item->Slot), FText::AsNumber(Item->Tier), MLGuildUI::GradeText(Item->RequiredGrade), Item->Description);
+		}
+
 	case EMLRestAction::Evolve:
 		if (Skill && Skill->GetEvolvedClass())
 		{
@@ -501,6 +554,11 @@ void UMLRunProgressComponent::ApplyRestChoice(const FMLLevelUpChoice& Picked)
 		break;
 	case EMLRestAction::Upgrade:
 		if (Skill) Skill->LevelUp();
+		break;
+	case EMLRestAction::TakeItem:
+		AddRunItem(Picked.ItemId);
+		// MLVerify(M9-3): 다음 마일스톤에서 제거
+		UE_LOG(LogTemp, Display, TEXT("[MLVerify] Grave item: %s runItems=%d"), *Picked.ItemId.ToString(), RunItems.Num());
 		break;
 	default:
 		HealPercent(RestHealPercent);

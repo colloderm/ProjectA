@@ -45,7 +45,8 @@ void UMLLevelUpWidget::Refresh()
 	RerollButton->SetIsEnabled(RunProgress->CanReroll());
 	if (TitleText)
 	{
-		TitleText->SetText(bRest ? NSLOCTEXT("ML", "RestTitle", "모닥불") : NSLOCTEXT("ML", "LevelUpTitle", "레벨 업!"));
+		TitleText->SetText(RunProgress->IsGraveOpen() ? NSLOCTEXT("ML", "GraveTitle", "망령의 유품")
+			: bRest ? NSLOCTEXT("ML", "RestTitle", "모닥불") : NSLOCTEXT("ML", "LevelUpTitle", "레벨 업!"));
 	}
 }
 

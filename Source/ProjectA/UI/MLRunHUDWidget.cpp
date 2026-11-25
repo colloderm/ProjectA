@@ -125,12 +125,17 @@ void UMLRunHUDWidget::RefreshRoom()
 	const FText Room = FText::AsNumber(RunMode->GetRoomInZone());
 	const FText Rooms = FText::AsNumber(RunMode->GetRoomsInZone());
 
-	// 황금 방 강조 문구: 슬라임 처치·시간 종료로 방이 끝나면 Combat이 아니게 되어 바로 사라짐
-	const bool bObjective = RunMode->GetRunState() == EMLRunState::Combat && RunMode->GetCurrentRoomType() == EMLRoomType::Gold;
+	// 황금·묘비 방 강조 문구: 목표 처치·시간 종료로 방이 끝나면 Combat이 아니게 되어 바로 사라짐
+	const bool bGrave = RunMode->GetCurrentRoomType() == EMLRoomType::Grave;
+	const bool bObjective = RunMode->GetRunState() == EMLRunState::Combat && (bGrave || RunMode->GetCurrentRoomType() == EMLRoomType::Gold);
 	if (bObjective != bObjectiveShown)
 	{
 		bObjectiveShown = bObjective;
-		if (bObjective) ObjectiveText->SetText(NSLOCTEXT("ML", "HUDGoldObjective", "황금 슬라임을 잡으세요!"));
+		if (bObjective)
+		{
+			ObjectiveText->SetText(bGrave ? NSLOCTEXT("ML", "HUDGraveObjective", "망령을 쓰러뜨리세요!")
+				: NSLOCTEXT("ML", "HUDGoldObjective", "황금 슬라임을 잡으세요!"));
+		}
 		ObjectiveText->SetVisibility(bObjective ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 	}
 
@@ -145,6 +150,10 @@ void UMLRunHUDWidget::RefreshRoom()
 			if (RoomType == EMLRoomType::Gold)
 			{
 				NewText = FText::Format(NSLOCTEXT("ML", "HUDRoomGold", "{0}구역 · 방 {1}/{2} · 황금 슬라임 {3}"), Zone, Room, Rooms, Time);
+			}
+			else if (RoomType == EMLRoomType::Grave)
+			{
+				NewText = FText::Format(NSLOCTEXT("ML", "HUDRoomGrave", "{0}구역 · 방 {1}/{2} · 묘비 {3}"), Zone, Room, Rooms, Time);
 			}
 			else if (RoomType == EMLRoomType::Elite)
 			{
@@ -225,7 +234,7 @@ void UMLRunHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 	UpdateArrow(PortalArrow, bChoosing, bChoosing ? RunMode->GetPortalGroupCenter() : FVector::ZeroVector, bPortalArrowShown);
 
 	FVector TargetLoc = FVector::ZeroVector;
-	const bool bTarget = RunMode && (RunMode->GetGoblinLocation(TargetLoc) || RunMode->GetEliteLocation(TargetLoc));
+	const bool bTarget = RunMode && (RunMode->GetGoblinLocation(TargetLoc) || RunMode->GetEliteLocation(TargetLoc) || RunMode->GetGhostLocation(TargetLoc));
 	UpdateArrow(GoblinArrow, bTarget, TargetLoc, bGoblinArrowShown);
 	
 	float BossPercent = 0.f;

@@ -3,8 +3,6 @@
 #include "MLBossActor.h"
 
 #include "Enemy/MLEnemySubsystem.h"
-#include "Hero/MLHeroCharacter.h"
-#include "Kismet/GameplayStatics.h"
 #include "Skills/MLSkillVisualActor.h"
 #include "TimerManager.h"
 
@@ -22,12 +20,6 @@ void AMLBossActor::StopBoss()
 {
 	GetWorldTimerManager().ClearAllTimersForObject(this);
 	HideTelegraph();
-}
-
-void AMLBossActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-	HideTelegraph();
-	Super::EndPlay(EndPlayReason);
 }
 
 void AMLBossActor::ScheduleNextPattern()
@@ -131,42 +123,4 @@ void AMLBossActor::AddEnrage()
 	{
 		EnemySub->SetEnemyMoveSpeed(EnemyIndex, NewSpeed);
 	}
-}
-
-void AMLBossActor::ShowTelegraph(TSubclassOf<AMLSkillVisualActor> TelegraphClass, const FVector& Location, const FRotator& Rotation, const FVector& Scale)
-{
-	HideTelegraph();
-	if (!TelegraphClass) return; // 경고 표시 없이 패턴만 실행
-
-	FActorSpawnParameters SpawnInfo;
-	SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	Telegraph = GetWorld()->SpawnActor<AMLSkillVisualActor>(TelegraphClass, Location, Rotation, SpawnInfo);
-	if (Telegraph)
-	{
-		Telegraph->SetActorScale3D(Scale);
-	}
-}
-
-void AMLBossActor::HideTelegraph()
-{
-	if (Telegraph)
-	{
-		Telegraph->Destroy();
-		Telegraph = nullptr;
-	}
-}
-
-UMLEnemySubsystem* AMLBossActor::GetEnemySubsystem() const
-{
-	const UWorld* World = GetWorld();
-	return World ? World->GetSubsystem<UMLEnemySubsystem>() : nullptr;
-}
-
-bool AMLBossActor::GetHeroLocation(FVector& OutLocation) const
-{
-	const AMLHeroCharacter* Hero = Cast<AMLHeroCharacter>(UGameplayStatics::GetPlayerPawn(this, 0));
-	if (!Hero || Hero->IsDead()) return false;
-
-	OutLocation = Hero->GetActorLocation();
-	return true;
 }

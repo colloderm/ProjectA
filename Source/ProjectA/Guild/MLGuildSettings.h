@@ -107,6 +107,14 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Request", meta = (ClampMin = "1"))
 	int32 RequestOfferCount = 3;
 	
+	// design §6.2.3 묘비: 넘치면 가장 오래된 것부터 사라짐
+	UPROPERTY(Config, EditAnywhere, Category = "Grave", meta = (ClampMin = "1"))
+	int32 MaxGraves = 3;
+
+	// 묘비가 남아 있는 원정 수
+	UPROPERTY(Config, EditAnywhere, Category = "Grave", meta = (ClampMin = "1"))
+	int32 GraveRuns = 5;
+
 	// design §9 화면 흐름: 길드 허브 ↔ 원정 맵
 	UPROPERTY(Config, EditAnywhere, Category = "Maps")
 	TSoftObjectPtr<UWorld> GuildMap;
