@@ -16,6 +16,7 @@ void UMLStashWidget::NativeOnInitialized()
 	EquipButton->OnClicked.AddDynamic(this, &UMLStashWidget::HandleEquip);
 	SellButton->OnClicked.AddDynamic(this, &UMLStashWidget::HandleSell);
 	BuyButton->OnClicked.AddDynamic(this, &UMLStashWidget::HandleBuy);
+	UpgradeShopButton->OnClicked.AddDynamic(this, &UMLStashWidget::HandleUpgradeShop);
 }
 
 void UMLStashWidget::Refresh()
@@ -51,6 +52,14 @@ void UMLStashWidget::Refresh()
 	EquipButton->SetVisibility(bShopMode ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
 	SellButton->SetVisibility(bShopMode ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
 	BuyButton->SetVisibility(bShopMode ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	UpgradeShopButton->SetVisibility(bShopMode ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+
+	// design §8.4: 비용 0 = 최고 등급
+	const int32 UpgradeCost = Guild->GetShopUpgradeCost();
+	UpgradeShopButton->SetIsEnabled(UpgradeCost > 0 && Save->Gold >= UpgradeCost);
+	UpgradeShopText->SetText(UpgradeCost > 0
+		? FText::Format(NSLOCTEXT("ML", "ShopUpgrade", "상점 {0}등급으로 확장 · {1}G"), FText::AsNumber(Save->ShopGrade + 1), FText::AsNumber(UpgradeCost))
+		: FText::Format(NSLOCTEXT("ML", "ShopUpgradeMax", "상점 {0}등급 · 최고 등급"), FText::AsNumber(Save->ShopGrade)));
 
 	// design §8.4: 가득 찬 창고로 장착 해제하면 아이템이 자동 판매되므로 여기서 막음
 	constexpr int32 SlotCount = static_cast<int32>(EMLItemSlot::Count);
@@ -201,6 +210,11 @@ void UMLStashWidget::HandleBuy()
 	{
 		OnBuyRequested.ExecuteIfBound(SelectedOffer);
 	}
+}
+
+void UMLStashWidget::HandleUpgradeShop()
+{
+	OnUpgradeShopRequested.ExecuteIfBound();
 }
 
 void UMLStashWidget::HandleViewTab(int32 TabIndex)

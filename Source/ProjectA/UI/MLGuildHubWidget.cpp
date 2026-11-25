@@ -39,6 +39,7 @@ void UMLGuildHubWidget::NativeOnInitialized()
 	MercPanel->OnTitleRequested.BindUObject(this, &UMLGuildHubWidget::HandleTitleRequested);
 	StashPanel->OnSellItemRequested.BindUObject(this, &UMLGuildHubWidget::HandleSellItemRequested);
 	StashPanel->OnBuyRequested.BindUObject(this, &UMLGuildHubWidget::HandleBuyRequested);
+	StashPanel->OnUpgradeShopRequested.BindUObject(this, &UMLGuildHubWidget::HandleUpgradeShopRequested);
 	ConfirmPanel->OnChoice.BindUObject(this, &UMLGuildHubWidget::HandleConfirmChoice);
 }
 
@@ -277,6 +278,22 @@ void UMLGuildHubWidget::HandleBuyRequested(int32 OfferIndex)
 		{ NSLOCTEXT("ML", "HubBuyOk", "구매한다") });
 }
 
+void UMLGuildHubWidget::HandleUpgradeShopRequested()
+{
+	const UMLGuildSubsystem* Guild = MLGuildUI::GetGuild(this);
+	const UMLSaveGame* Save = Guild ? Guild->GetSaveData() : nullptr;
+	const int32 Cost = Guild ? Guild->GetShopUpgradeCost() : 0;
+	if (!Save || Cost <= 0) return;
+
+	// design §8.4: 등급 N = N~N+1티어
+	const int32 NextGrade = Save->ShopGrade + 1;
+	Pending = EMLGuildPending::UpgradeShop;
+	ConfirmPanel->Open(NSLOCTEXT("ML", "HubUpgradeShopTitle", "상점 확장"),
+		FText::Format(NSLOCTEXT("ML", "HubUpgradeShopBody", "상점을 <Name>{0}등급</>으로 올립니다. <Gold>{1}G</>\n{2}~{3}티어 장비가 진열됩니다. <Dim>(1칸은 항상 1티어)</>\n<Dim>지금 진열은 사라지고 바로 새로 바뀝니다.</>"),
+			FText::AsNumber(NextGrade), FText::AsNumber(Cost), FText::AsNumber(NextGrade), FText::AsNumber(NextGrade + 1)),
+		{ NSLOCTEXT("ML", "HubUpgradeShopOk", "확장한다") });
+}
+
 void UMLGuildHubWidget::HandleTitleRequested()
 {
 	TitlePanel->Open(); // design §8.7: [획득] [미획득] 탭 전용 창
@@ -359,6 +376,9 @@ void UMLGuildHubWidget::HandleConfirmChoice(int32 Choice)
 		break;
 	case EMLGuildPending::BuyItem:
 		bOk = Guild->BuyShopItem(PendingIndex);
+		break;
+	case EMLGuildPending::UpgradeShop:
+		bOk = Guild->UpgradeShop();
 		break;
 	case EMLGuildPending::Sortie:
 		Guild->AcceptRequest(Save->RequestOffers.IsValidIndex(Choice) ? Choice : INDEX_NONE);

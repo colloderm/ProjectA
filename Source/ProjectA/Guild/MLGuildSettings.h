@@ -95,12 +95,13 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Items", meta = (ClampMin = "1"))
 	float WeaponMatchBonus = 1.15f;
 	
-	// design §8.4 길드 상점: 원정마다 진열 갱신 (서로 다른 아이템, 티어 ≤ ShopMaxTier)
+	// design §8.4 길드 상점: 원정마다 진열 갱신 (서로 다른 아이템, 상점 등급 N = N~N+1티어)
 	UPROPERTY(Config, EditAnywhere, Category = "Shop", meta = (ClampMin = "1"))
 	int32 ShopOfferCount = 4;
 
-	UPROPERTY(Config, EditAnywhere, Category = "Shop", meta = (ClampMin = "1", ClampMax = "4"))
-	int32 ShopMaxTier = 2;
+	// 상점 확장 비용: [0] = 1→2등급, [1] = 2→3등급. 최고 등급 = 항목 수 + 1
+	UPROPERTY(Config, EditAnywhere, Category = "Shop", meta = (ClampMin = "1"))
+	TArray<int32> ShopUpgradeCosts = { 5000, 15000 };
 	
 	// design §8.5.1 의뢰판: Weight로 서로 다른 의뢰 진열, 원정마다 갱신
 	UPROPERTY(Config, EditAnywhere, Category = "Request", meta = (ClampMin = "1"))

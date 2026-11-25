@@ -24,6 +24,7 @@ public:
 
 	FMLOnEntryClicked OnSellItemRequested; // 창고 인덱스; 허브가 확인 창을 엶
 	FMLOnEntryClicked OnBuyRequested; // 상점 진열 인덱스; 허브가 확인 창을 엶
+	FSimpleDelegate OnUpgradeShopRequested; // 허브가 확인 창을 엶
 
 protected:
 	virtual void NativeOnInitialized() override;
@@ -76,6 +77,13 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> BuyText;
 
+	// design §8.4 상점 등급: "2등급으로 확장 · 5,000G" / "최고 등급"
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UButton> UpgradeShopButton;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UTextBlock> UpgradeShopText;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Guild UI")
 	TSubclassOf<UMLListEntryWidget> ViewTabClass;
 
@@ -100,6 +108,9 @@ private:
 	
 	UFUNCTION()
 	void HandleBuy();
+
+	UFUNCTION()
+	void HandleUpgradeShop();
 
 	void HandleViewTab(int32 TabIndex);
 	void HandleOffer(int32 OfferIndex);

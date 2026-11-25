@@ -30,6 +30,7 @@ enum class EMLGuildPending : uint8
 	RetireReplace,
 	SellItem,
 	BuyItem,
+	UpgradeShop,
 	Sortie,  // 선택지 = 의뢰 진열 인덱스 (마지막 선택지 = 의뢰 없음)
 	Notice   // 안내 전용 (비정상 종료 복구)
 };
@@ -146,6 +147,7 @@ private:
 	void HandleSellRequested();
 	void HandleSellItemRequested(int32 StashIndex);
 	void HandleBuyRequested(int32 OfferIndex);
+	void HandleUpgradeShopRequested();
 	void HandleTitleRequested();
 	void HandleConfirmChoice(int32 Choice);
 
