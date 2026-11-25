@@ -30,4 +30,6 @@ public:
 	UPROPERTY() TArray<FMLHallEntry> HallOfFame;
 	UPROPERTY() bool bRunInProgress = false;			// design §6.6 비정상 종료 복구 플래그
 	UPROPERTY() int32 NextMercId = 1;
+	UPROPERTY() FMLGuildStats GuildStats;				// design §8.7: 길드 누적 기록 (칭호 해금 기준)
+	UPROPERTY() bool bGuildStatsSeeded = false;		// M9-2 이전 저장: 명예의 전당·현재 용병 기록에서 한 번 이어받았는지
 };

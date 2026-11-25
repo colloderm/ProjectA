@@ -68,6 +68,59 @@ namespace MLGuildUI
 			TalentName(Guild, TalentId), Talent ? Talent->Description : FText::GetEmpty());
 	}
 
+	FText TitleName(const UMLGuildSubsystem& Guild, FName TitleId)
+	{
+		const FMLTitleRow* Title = Guild.FindTitle(TitleId);
+		if (!Title) return NSLOCTEXT("ML", "TitleNone", "없음");
+
+		static const TCHAR* Tags[] = { TEXT("TitleCommon"), TEXT("TitleRare"), TEXT("TitleEpic"), TEXT("TitleLegend") };
+		const int32 TagIndex = FMath::Clamp(static_cast<int32>(Title->Rarity), 0, 3);
+		return FText::Format(NSLOCTEXT("ML", "TitleTagged", "<{0}>{1}</>"), FText::FromString(Tags[TagIndex]), Title->Name);
+	}
+
+	FText TitleLine(const UMLGuildSubsystem& Guild, FName TitleId)
+	{
+		const FMLTitleRow* Title = Guild.FindTitle(TitleId);
+		if (!Title) return TitleName(Guild, TitleId);
+
+		TArray<FText> Parts;
+		for (int32 i = 0; i < FMLStatBlock::Num; ++i)
+		{
+			if (Title->BonusPercent[i] != 0.f)
+			{
+				Parts.Add(FText::Format(NSLOCTEXT("ML", "TitleBonusPct", "{0} +{1}%"), StatLabel(i), FText::AsNumber(Title->BonusPercent[i])));
+			}
+			if (Title->Flat[i] != 0.f)
+			{
+				Parts.Add(FText::Format(NSLOCTEXT("ML", "TitleBonusFlat", "{0} +{1}"), StatLabel(i), FText::AsNumber(Title->Flat[i])));
+			}
+		}
+		if (Title->GoldPercent != 0.f) Parts.Add(FText::Format(NSLOCTEXT("ML", "TitleBonusGold", "탈출 골드 +{0}%"), FText::AsNumber(Title->GoldPercent)));
+		if (Title->XPPercent != 0.f) Parts.Add(FText::Format(NSLOCTEXT("ML", "TitleBonusXP", "경험치 +{0}%"), FText::AsNumber(Title->XPPercent)));
+
+		return FText::Format(NSLOCTEXT("ML", "TitleLine", "{0}  <Dim>{1}</>"), TitleName(Guild, TitleId), FText::Join(FText::FromString(TEXT(", ")), Parts));
+	}
+
+	FText TitleProgressLine(const UMLGuildSubsystem& Guild, FName TitleId)
+	{
+		const FMLTitleRow* Title = Guild.FindTitle(TitleId);
+		if (!Title) return FText::GetEmpty();
+
+		FText StatName;
+		switch (Title->Stat)
+		{
+		case EMLTitleStat::Kills:       StatName = NSLOCTEXT("ML", "TitleStatKills", "처치"); break;
+		case EMLTitleStat::EliteKills:  StatName = NSLOCTEXT("ML", "TitleStatElites", "엘리트 처치"); break;
+		case EMLTitleStat::BossKills:   StatName = NSLOCTEXT("ML", "TitleStatBoss", "보스 처치"); break;
+		case EMLTitleStat::Extractions: StatName = NSLOCTEXT("ML", "TitleStatExtract", "탈출"); break;
+		case EMLTitleStat::Deaths:      StatName = NSLOCTEXT("ML", "TitleStatDeaths", "용병 전사"); break;
+		default:                        StatName = NSLOCTEXT("ML", "TitleStatGold", "원정 골드"); break;
+		}
+		// 미획득 탭 항목: 1줄 = 등급 색 이름 + 보너스, 2줄 = 진행도
+		return FText::Format(NSLOCTEXT("ML", "TitleProgress", "{0}\n<Dim>{1} / {2} {3}</>"), TitleLine(Guild, TitleId),
+			FText::AsNumber(Guild.GetTitleProgress(TitleId)), FText::AsNumber(Title->Target), StatName);
+	}
+
 	FText DescribeMerc(const UMLGuildSubsystem& Guild, const FMLMercData& Merc)
 	{
 		const FMLGradeRow* Row = Guild.FindGrade(Merc.Grade);

@@ -32,6 +32,28 @@ enum class EMLLeaveReason : uint8
 	Fallen
 };
 
+// design §8.7 칭호 (M9-2): 해금 조건이 되는 길드 누적 기록
+UENUM(BlueprintType)
+enum class EMLTitleStat : uint8
+{
+	Kills,
+	EliteKills,
+	BossKills,
+	Extractions,
+	Deaths,
+	GoldEarned
+};
+
+// 칭호 색 등급 (흰 / 파랑 / 보라 / 금)
+UENUM(BlueprintType)
+enum class EMLTitleRarity : uint8
+{
+	Common,
+	Rare,
+	Epic,
+	Legend
+};
+
 // design §7.4 장비 슬롯
 UENUM(BlueprintType)
 enum class EMLItemSlot : uint8
@@ -110,6 +132,49 @@ struct FMLTalentRow : public FTableRowBase
 	UPROPERTY(EditAnywhere) FMLStatBlock BonusPercent; // +18 = ×1.18, -8 = ×0.92
 	UPROPERTY(EditAnywhere) FMLStatBlock Flat;
 	UPROPERTY(EditAnywhere) FText Description;
+};
+
+// DT_Titles 행 (design §8.7, M9-2). 해금 = 길드 누적 기록[Stat] >= Target
+USTRUCT(BlueprintType)
+struct FMLTitleRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere) FText Name;
+	UPROPERTY(EditAnywhere) EMLTitleStat Stat = EMLTitleStat::Kills;
+	UPROPERTY(EditAnywhere, meta = (ClampMin = "1")) int32 Target = 1;
+	UPROPERTY(EditAnywhere) EMLTitleRarity Rarity = EMLTitleRarity::Common;
+	UPROPERTY(EditAnywhere) FMLStatBlock BonusPercent; // 재능과 같음: +3 = ×1.03
+	UPROPERTY(EditAnywhere) FMLStatBlock Flat;
+	UPROPERTY(EditAnywhere) float GoldPercent = 0.f;   // 탈출 골드
+	UPROPERTY(EditAnywhere) float XPPercent = 0.f;     // 용병 경험치
+};
+
+// design §8.7 길드 누적 기록 (계정 전체, 칭호 해금 기준)
+USTRUCT()
+struct FMLGuildStats
+{
+	GENERATED_BODY()
+
+	UPROPERTY() int32 Kills = 0;
+	UPROPERTY() int32 EliteKills = 0;
+	UPROPERTY() int32 BossKills = 0;
+	UPROPERTY() int32 Extractions = 0;
+	UPROPERTY() int32 Deaths = 0;		// 용병 전사
+	UPROPERTY() int32 GoldEarned = 0;	// 가문 보너스 적용 후 탈출 골드
+
+	int32 Get(EMLTitleStat Stat) const
+	{
+		switch (Stat)
+		{
+		case EMLTitleStat::Kills:       return Kills;
+		case EMLTitleStat::EliteKills:  return EliteKills;
+		case EMLTitleStat::BossKills:   return BossKills;
+		case EMLTitleStat::Extractions: return Extractions;
+		case EMLTitleStat::Deaths:      return Deaths;
+		default:                        return GoldEarned;
+		}
+	}
 };
 
 // DT_FamilyUpgrades 행 (웹 db.js ACCOUNT_UPGRADES, design §8.3)
@@ -199,6 +264,7 @@ struct FMLMercData
 	UPROPERTY() TMap<FName, int32> TrainingBuys;					// DT_Trainings 행 → 구매 횟수
 	UPROPERTY() EMLAttackType WeaponType = EMLAttackType::Dagger;	// design §7.4 주무기 (M7-3 이전 저장 = Dagger)
 	UPROPERTY() TMap<EMLItemSlot, FName> Equipped;					// 슬롯별 DT_Items 행
+	UPROPERTY() FName Title;										// design §8.7: 장착 칭호 (DT_Titles 행), 없으면 None
 
 	// design §8.2 / §8.5 기록
 	UPROPERTY() int32 Extractions = 0;
@@ -255,4 +321,5 @@ struct FMLRunReward
 	int32 RequestGold = 0;
 	int32 RequestXP = 0;
 	int32 RequestPoints = 0;
+	TArray<FText> NewTitles;	// design §8.7: 이번 원정으로 새로 해금된 칭호
 };

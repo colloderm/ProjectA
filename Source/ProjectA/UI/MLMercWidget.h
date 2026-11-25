@@ -22,6 +22,7 @@ public:
 
 	FSimpleDelegate OnRetireRequested; // 허브가 확인 창을 엶
 	FSimpleDelegate OnSellRequested;
+	FSimpleDelegate OnTitleRequested;  // design §8.7: 허브가 칭호 목록 창을 엶
 
 protected:
 	virtual void NativeOnInitialized() override;
@@ -34,6 +35,10 @@ protected:
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> SellButton;
+
+	// design §8.7 [칭호 변경]
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UButton> TitleButton;
 	
 	// design §7.5 훈련 행 (WBP_GuildTraining)
 	UPROPERTY(meta = (BindWidget))
@@ -48,6 +53,9 @@ private:
 
 	UFUNCTION()
 	void HandleSell();
+
+	UFUNCTION()
+	void HandleTitle();
 	
 	void HandleTraining(int32 Index);
 

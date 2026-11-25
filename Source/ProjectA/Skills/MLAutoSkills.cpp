@@ -73,20 +73,13 @@ void UMLSkill_Blades::FireShots()
 	Shot.MaxRange = ShotRange;
 	Shot.Source = GetDamageSource();
 
-	int32 Launched = 0;
 	const FVector Center = Pivot->GetActorLocation();
 	for (const TObjectPtr<AMLSkillVisualActor>& Blade : Blades)
 	{
 		if (!Blade) continue;
 		Shot.Start = Blade->GetActorLocation();
 		Shot.Velocity = (Shot.Start - Center).GetSafeNormal2D() * ShotSpeed; // 칼날 위치에서 바깥 방향
-		if (ProjectileSub->Launch(Shot)) ++Launched;
-	}
-
-	// MLVerify(M9-1c): M9-2에서 제거 — 6번마다 요약
-	if (++VerifyShotFires % 6 == 1)
-	{
-		UE_LOG(LogTemp, Display, TEXT("[MLVerify] Blade shots: %s launched=%d interval=%.2f"), *GetSkillName().ToString(), Launched, ShotInterval);
+		ProjectileSub->Launch(Shot);
 	}
 }
 
@@ -322,9 +315,6 @@ void UMLSkill_ThunderStrike::StartStorm()
 
 	StormLeft = StormStrikes;
 	World->GetTimerManager().SetTimer(StormStrikeHandle, this, &UMLSkill_ThunderStrike::StormStrike, FMath::Max(0.05f, StormSeconds / StormStrikes), true);
-
-	// MLVerify(M9-1c): M9-2에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Thunder storm: strikes=%d over %.1fs range=%.0f"), StormStrikes, StormSeconds, StormRange);
 }
 
 void UMLSkill_ThunderStrike::StormStrike()
@@ -564,8 +554,8 @@ void UMLSkill_FrostNova::CastGlacier()
 
 	// 결빙 먼저: 피해로 죽지 않은 적이 확실히 멈추도록
 	const FVector Center = Hero->GetActorLocation();
-	const int32 Frozen = EnemySub->SlowInRadius(Center, GlacierRadius, 0.f, GlacierFreezeSeconds);
-	const int32 Hits = EnemySub->DamageInRadius(Center, GlacierRadius, RollDamage(GlacierDamageMult), GetDamageSource());
+	EnemySub->SlowInRadius(Center, GlacierRadius, 0.f, GlacierFreezeSeconds);
+	EnemySub->DamageInRadius(Center, GlacierRadius, RollDamage(GlacierDamageMult), GetDamageSource());
 
 	if (GlacierVisualClass)
 	{
@@ -587,9 +577,6 @@ void UMLSkill_FrostNova::CastGlacier()
 			}), 0.5f, false);
 		}
 	}
-
-	// MLVerify(M9-1c): M9-2에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Glacier: radius=%.0f frozen=%d hits=%d"), GlacierRadius, Frozen, Hits);
 }
 
 void UMLSkill_FrostNova::StepNovaVisual()
@@ -853,9 +840,6 @@ void UMLSkill_Aura::ProcessBursts()
 	{
 		World->GetTimerManager().SetTimer(BurstTimerHandle, this, &UMLSkill_Aura::ProcessBursts, 0.1f, false);
 	}
-
-	// MLVerify(M9-1c): M9-2에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Purgatory burst: bursts=%d pending=%d"), Count, PendingBursts.Num());
 }
 
 void UMLSkill_Aura::DropFlame()

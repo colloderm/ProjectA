@@ -18,6 +18,7 @@ class UMLMercWidget;
 class UMLStashWidget;
 class UMLFamilyWidget;
 class UMLHallWidget;
+class UMLTitleWidget;
 
 // 열린 확인 창이 선택 시 할 일
 enum class EMLGuildPending : uint8
@@ -111,6 +112,10 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UMLConfirmWidget> ConfirmPanel;
 
+	// design §8.7 칭호 창 (용병 화면의 [칭호 변경])
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UMLTitleWidget> TitlePanel;
+
 private:
 	void Refresh();
 	void ShowPanel(UWidget* Panel); // 표시 중인 패널의 메뉴 버튼은 선택된 모양 (여전히 클릭 가능)
@@ -141,12 +146,13 @@ private:
 	void HandleSellRequested();
 	void HandleSellItemRequested(int32 StashIndex);
 	void HandleBuyRequested(int32 OfferIndex);
+	void HandleTitleRequested();
 	void HandleConfirmChoice(int32 Choice);
 
 	FDelegateHandle GuildChangedHandle;
 	EMLGuildPending Pending = EMLGuildPending::None;
 	EMLGrade PendingGrade = EMLGrade::F;
-	int32 PendingIndex = INDEX_NONE; // 계약: 등급 내 인덱스 / 은퇴 교체: 재능 인덱스 / 아이템 판매: 창고 인덱스 / 구매: 진열 인덱스
+	int32 PendingIndex = INDEX_NONE; // 계약: 등급 내 인덱스 / 은퇴 교체: 재능 인덱스 / 아이템 판매: 보관함 인덱스 / 구매: 진열 인덱스
 	UPROPERTY(Transient)
 	FButtonStyle MenuStyle;
 

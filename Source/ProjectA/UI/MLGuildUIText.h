@@ -20,6 +20,12 @@ namespace MLGuildUI
 	FText TalentLine(const UMLGuildSubsystem& Guild, FName TalentId);
 	// 이름 · 등급 · 주무기 / 레벨 · 경험치 / 최종 스탯 / 재능
 	FText DescribeMerc(const UMLGuildSubsystem& Guild, const FMLMercData& Merc);
+	// design §8.7 칭호: 등급 색 RichText 태그 <TitleCommon/Rare/Epic/Legend>. None·없는 행 = "없음"
+	FText TitleName(const UMLGuildSubsystem& Guild, FName TitleId);
+	// "<등급색>학살자</>  <Dim>공격 +3%</>" (보너스 요약 포함)
+	FText TitleLine(const UMLGuildSubsystem& Guild, FName TitleId);
+	// 잠긴 칭호: "학살자  <Dim>1,240 / 5,000 처치</>"
+	FText TitleProgressLine(const UMLGuildSubsystem& Guild, FName TitleId); // TitleLine + 다음 줄에 진행도
 	FText StatLabel(int32 Index); // 체력 / 공격 / 방어 / 속도 / 치명 / 회피 / 특수
 	// "공격 +4, 치명 +2%" (0이 아닌 스탯만)
 	FText StatsText(const FMLStatBlock& Stats);

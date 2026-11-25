@@ -13,6 +13,7 @@ void UMLMercWidget::NativeOnInitialized()
 	Super::NativeOnInitialized();
 	RetireButton->OnClicked.AddDynamic(this, &UMLMercWidget::HandleRetire);
 	SellButton->OnClicked.AddDynamic(this, &UMLMercWidget::HandleSell);
+	TitleButton->OnClicked.AddDynamic(this, &UMLMercWidget::HandleTitle);
 }
 
 void UMLMercWidget::Refresh()
@@ -22,6 +23,7 @@ void UMLMercWidget::Refresh()
 	const bool bHasMerc = Save && Save->bHasMerc;
 	RetireButton->SetIsEnabled(bHasMerc && Save->Merc.Talents.Num() > 0); // design §8.3: 은퇴하려면 고를 유산 재능이 필요
 	SellButton->SetIsEnabled(bHasMerc);
+	TitleButton->SetIsEnabled(bHasMerc);
 	
 	// design §7.5 훈련: 용병별, 구매할 때마다 비용 증가; 즉시 구매 (확인 없음)
 	TrainingIds = bHasMerc ? Guild->GetTrainingIds() : TArray<FName>();
@@ -55,10 +57,16 @@ void UMLMercWidget::Refresh()
 	}
 
 	MercText->SetText(FText::Format(NSLOCTEXT("ML", "MercDetail",
-		"{0}\n\n<Dim>장비</>  무기 {1} · 방어구 {2} · 장신구 {3}\n<Dim>기록</>  탈출 {4} · 보스 처치 {5} · 최고 {6}구역\n<Dim>은퇴 시</> <Talent>가문 포인트 +{7}</>    <Dim>판매가</> <Gold>{8}G</>"),
+		"{0}\n<Dim>칭호</>  {9}\n\n<Dim>장비</>  무기 {1} · 방어구 {2} · 장신구 {3}\n<Dim>기록</>  탈출 {4} · 보스 처치 {5} · 최고 {6}구역\n<Dim>은퇴 시</> <Talent>가문 포인트 +{7}</>    <Dim>판매가</> <Gold>{8}G</>"),
 		MLGuildUI::DescribeMerc(*Guild, Merc), EquipNames[0], EquipNames[1], EquipNames[2],
 		FText::AsNumber(Merc.Extractions), FText::AsNumber(Merc.BossKills), FText::AsNumber(Merc.BestZone),
-		FText::AsNumber(Guild->GetRetirePoints(Merc)), FText::AsNumber(Guild->GetSellPrice(Merc))));
+		FText::AsNumber(Guild->GetRetirePoints(Merc)), FText::AsNumber(Guild->GetSellPrice(Merc)),
+		MLGuildUI::TitleLine(*Guild, Merc.Title)));
+}
+
+void UMLMercWidget::HandleTitle()
+{
+	OnTitleRequested.ExecuteIfBound();
 }
 
 void UMLMercWidget::HandleRetire()

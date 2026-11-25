@@ -40,6 +40,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Data")
 	TSoftObjectPtr<UDataTable> RequestTable;
 
+	// 행 구조체 FMLTitleRow (선택: 없으면 칭호 없음, design §8.7)
+	UPROPERTY(Config, EditAnywhere, Category = "Data")
+	TSoftObjectPtr<UDataTable> TitleTable;
+
 	// design §7.1.1 용병 경험치, 탈출 시에만 지급
 	UPROPERTY(Config, EditAnywhere, Category = "Merc XP")
 	int32 KillXP = 1;

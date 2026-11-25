@@ -1,0 +1,15 @@
+---,Name,Stat,Target,Rarity,BonusPercent,Flat,GoldPercent,XPPercent
+kill1,사냥꾼,Kills,1000,Common,"(ATK=2)","(HP=0)",0,0
+kill2,학살자,Kills,5000,Rare,"(ATK=3)","(HP=0)",0,0
+kill3,전장의 재앙,Kills,20000,Epic,"(ATK=5)","(HP=0)",0,0
+extract1,생환자,Extractions,5,Common,"(HP=3)","(HP=0)",0,0
+extract2,노련한 생환자,Extractions,20,Rare,"(HP=5)","(HP=0)",0,0
+extract3,불굴,Extractions,50,Epic,"(HP=8)","(HP=0)",0,0
+boss1,보스 사냥꾼,BossKills,1,Rare,"(HP=0)","(CRIT=1)",0,0
+boss2,용사,BossKills,5,Epic,"(HP=0)","(CRIT=2)",0,0
+boss3,전설,BossKills,15,Legend,"(HP=0)","(CRIT=3)",0,0
+elite1,정예 사냥꾼,EliteKills,50,Common,"(HP=0)","(SPD=3)",0,0
+elite2,정예 학살자,EliteKills,200,Rare,"(HP=0)","(SPD=5)",0,0
+gold1,황금손,GoldEarned,5000,Common,"(HP=0)","(HP=0)",5,0
+gold2,대상인,GoldEarned,25000,Rare,"(HP=0)","(HP=0)",10,0
+death1,피로 쓴 역사,Deaths,10,Epic,"(HP=0)","(HP=0)",0,10

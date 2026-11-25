@@ -80,6 +80,13 @@ void AMLHeroCharacter::BeginPlay()
 	if (UMLHeroBarsWidget* BarsWidget = Cast<UMLHeroBarsWidget>(HeroBars->GetUserWidgetObject()))
 	{
 		BarsWidget->InitBars(HeroASC);
+
+		// design §8.7: 장착 칭호 (원정 중에는 바뀌지 않으므로 한 번만)
+		FText TitleName;
+		EMLTitleRarity TitleRarity = EMLTitleRarity::Common;
+		const UMLGuildSubsystem* Guild = GetGameInstance() ? GetGameInstance()->GetSubsystem<UMLGuildSubsystem>() : nullptr;
+		if (!Guild || !Guild->GetActiveTitle(TitleName, TitleRarity)) TitleName = FText::GetEmpty();
+		BarsWidget->SetTitle(TitleName, TitleRarity);
 	}
 	
 	// design §6.4 체력 재생 패시브: 액터 틱 대신 타이머 (레벨업 중 게임과 함께 일시정지)
