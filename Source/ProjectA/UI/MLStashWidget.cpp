@@ -28,8 +28,8 @@ void UMLStashWidget::Refresh()
 	const int32 Capacity = GetDefault<UMLGuildSettings>()->StashCapacity;
 	const bool bStashFull = Save->Stash.Num() >= Capacity;
 	CountText->SetText(FText::Format(bStashFull
-		? NSLOCTEXT("ML", "StashCountFull", "창고 {0}/{1} · 가득 참: 장비를 해제할 수 없습니다")
-		: NSLOCTEXT("ML", "StashCount", "창고 {0}/{1}"),
+		? NSLOCTEXT("ML", "StashCountFull", "보관함 {0}/{1} · 가득 참: 장비를 해제할 수 없습니다")
+		: NSLOCTEXT("ML", "StashCount", "보관함 {0}/{1}"),
 		FText::AsNumber(Save->Stash.Num()), FText::AsNumber(Capacity)));
 
 	auto TierTint = [this](int32 Tier) { return TierTints.IsValidIndex(Tier - 1) ? &TierTints[Tier - 1] : nullptr; };
@@ -131,7 +131,7 @@ void UMLStashWidget::Refresh()
 			Detail = MLGuildUI::ItemDetail(*Guild, *Offer, Merc);
 			if (bStashFull)
 			{
-				Detail = FText::Format(NSLOCTEXT("ML", "ShopStashFull", "{0}\n\n<Dim>창고가 가득 차서 구매할 수 없습니다.</>"), Detail);
+				Detail = FText::Format(NSLOCTEXT("ML", "ShopStashFull", "{0}\n\n<Dim>보관함이 가득 차서 구매할 수 없습니다.</>"), Detail);
 			}
 			else if (!bCanPay)
 			{
@@ -149,7 +149,7 @@ void UMLStashWidget::Refresh()
 	const FMLItemRow* Selected = SelectedIndex != INDEX_NONE ? Guild->FindItem(SelectedItem) : nullptr;
 	DetailText->SetText(Selected
 		? MLGuildUI::ItemDetail(*Guild, *Selected, Merc)
-		: NSLOCTEXT("ML", "StashPick", "<Dim>창고의 아이템을 누르면 정보와 비교가 나옵니다.</>\n<Dim>장착한 장비를 누르면 해제합니다.</>"));
+		: NSLOCTEXT("ML", "StashPick", "<Dim>보관함의 아이템을 누르면 정보와 비교가 나옵니다.</>\n<Dim>장착한 장비를 누르면 해제합니다.</>"));
 
 	// design §7.4: 필요 등급 미만 = 장착 불가 (상세 텍스트에 이유 표시)
 	EquipButton->SetIsEnabled(Selected && Merc && Merc->Grade >= Selected->RequiredGrade);

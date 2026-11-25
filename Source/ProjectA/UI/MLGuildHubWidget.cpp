@@ -17,6 +17,7 @@
 #include "UI/MLStashWidget.h"
 #include "UI/MLFamilyWidget.h"
 #include "UI/MLHallWidget.h"
+#include "UI/MLTitleWidget.h"
 
 void UMLGuildHubWidget::NativeOnInitialized()
 {
@@ -35,6 +36,7 @@ void UMLGuildHubWidget::NativeOnInitialized()
 	ContractPanel->OnContractRequested.BindUObject(this, &UMLGuildHubWidget::HandleContractRequested);
 	MercPanel->OnRetireRequested.BindUObject(this, &UMLGuildHubWidget::HandleRetireRequested);
 	MercPanel->OnSellRequested.BindUObject(this, &UMLGuildHubWidget::HandleSellRequested);
+	MercPanel->OnTitleRequested.BindUObject(this, &UMLGuildHubWidget::HandleTitleRequested);
 	StashPanel->OnSellItemRequested.BindUObject(this, &UMLGuildHubWidget::HandleSellItemRequested);
 	StashPanel->OnBuyRequested.BindUObject(this, &UMLGuildHubWidget::HandleBuyRequested);
 	ConfirmPanel->OnChoice.BindUObject(this, &UMLGuildHubWidget::HandleConfirmChoice);
@@ -50,6 +52,7 @@ void UMLGuildHubWidget::NativeConstruct()
 
 	GuildChangedHandle = Guild->OnGuildChanged.AddUObject(this, &UMLGuildHubWidget::Refresh);
 	ConfirmPanel->Close();
+	TitlePanel->Close();
 	ShowPanel(Save->bHasMerc ? static_cast<UWidget*>(MercPanel.Get()) : ContractPanel.Get());
 	Refresh();
 	
@@ -91,6 +94,7 @@ void UMLGuildHubWidget::Refresh()
 	StashPanel->Refresh();
 	FamilyPanel->Refresh();
 	HallPanel->Refresh();
+	TitlePanel->Refresh(); // 열려 있을 때만 갱신 (칭호 장착 직후 강조 이동)
 }
 
 void UMLGuildHubWidget::ShowPanel(UWidget* Panel)
@@ -236,7 +240,7 @@ void UMLGuildHubWidget::HandleSellRequested()
 
 	Pending = EMLGuildPending::Sell;
 	ConfirmPanel->Open(NSLOCTEXT("ML", "HubSellTitle", "용병 판매"),
-		FText::Format(NSLOCTEXT("ML", "HubSellBody", "<Name>{0}</>을(를) <Gold>{1}G</>에 판매합니다.\n<Dim>가문 포인트와 유산 재능은 얻지 못합니다.</>\n<Dim>장착 장비는 창고로 돌아갑니다.</>"),
+		FText::Format(NSLOCTEXT("ML", "HubSellBody", "<Name>{0}</>을(를) <Gold>{1}G</>에 판매합니다.\n<Dim>가문 포인트와 유산 재능은 얻지 못합니다.</>\n<Dim>장착 장비는 보관함으로 돌아갑니다.</>"),
 			FText::FromString(Save->Merc.Name), FText::AsNumber(Guild->GetSellPrice(Save->Merc))),
 		{ NSLOCTEXT("ML", "HubSellOk", "판매한다") });
 }
@@ -273,6 +277,11 @@ void UMLGuildHubWidget::HandleBuyRequested(int32 OfferIndex)
 		{ NSLOCTEXT("ML", "HubBuyOk", "구매한다") });
 }
 
+void UMLGuildHubWidget::HandleTitleRequested()
+{
+	TitlePanel->Open(); // design §8.7: [획득] [미획득] 탭 전용 창
+}
+
 void UMLGuildHubWidget::HandleRetireRequested()
 {
 	const UMLGuildSubsystem* Guild = MLGuildUI::GetGuild(this);
@@ -292,7 +301,7 @@ void UMLGuildHubWidget::HandleRetireRequested()
 	Pending = EMLGuildPending::RetireTalent;
 	const int32 Points = Guild->GetRetirePoints(Save->Merc);
 	ConfirmPanel->Open(NSLOCTEXT("ML", "HubRetireTitle", "용병 은퇴"),
-		FText::Format(NSLOCTEXT("ML", "HubRetireBody", "<Name>{0}</>을(를) 은퇴시킵니다.\n<Talent>가문 포인트 +{1}</> · <Talent>명성 +{1}</>\n<Dim>장착 장비는 창고로 돌아갑니다.</>\n\n가문에 남길 유산 재능을 누르면 은퇴가 확정됩니다."),
+		FText::Format(NSLOCTEXT("ML", "HubRetireBody", "<Name>{0}</>을(를) 은퇴시킵니다.\n<Talent>가문 포인트 +{1}</> · <Talent>명성 +{1}</>\n<Dim>장착 장비는 보관함으로 돌아갑니다.</>\n\n가문에 남길 유산 재능을 누르면 은퇴가 확정됩니다."),
 			FText::FromString(Save->Merc.Name), FText::AsNumber(Points)),
 		Choices);
 }

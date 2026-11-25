@@ -77,6 +77,14 @@ public:
 	int32 GetFamilyUpgradeCost(FName UpgradeId) const; // design §8.3: Cost × CostGrowth^현재 레벨
 	const FMLRequestRow* FindRequest(FName RequestId) const;
 
+	// design §8.7 칭호 (M9-2): 해금은 길드 누적 기록으로 매번 계산 (따로 저장하지 않음)
+	const FMLTitleRow* FindTitle(FName TitleId) const;
+	TArray<FName> GetTitleIds() const;
+	bool IsTitleUnlocked(FName TitleId) const;
+	int32 GetTitleProgress(FName TitleId) const; // 조건 기록의 현재 누적 수치
+	bool EquipTitle(FName TitleId);              // None = 해제. 원정 중이거나 미해금이면 거절
+	bool GetActiveTitle(FText& OutName, EMLTitleRarity& OutRarity) const; // 원정 표시용: 장착 칭호가 없으면 false
+
 	// 개발 콘솔 (M8 길드 UI 전까지)
 	void LogStatus() const;
 	void ResetSave();
@@ -97,6 +105,8 @@ private:
 	int32 ReturnEquipmentToStash();                 // 은퇴 / 판매; 자동 판매된 골드를 반환
 	void GainMercXP(FMLMercData& Merc, int32 Amount) const;
 	FString TalentsToString(const TArray<FName>& Talents) const;
+	const FMLTitleRow* GetMercTitle(const FMLMercData& Merc) const; // 장착 + 해금된 칭호만, 아니면 nullptr
+	void SeedGuildStats();
 	void CreateNewSave();
 	void Save();
 
@@ -120,6 +130,9 @@ private:
 	
 	UPROPERTY()
 	TObjectPtr<UDataTable> RequestTable;
+
+	UPROPERTY()
+	TObjectPtr<UDataTable> TitleTable;
 
 	bool bRollbackNotice = false;
 };

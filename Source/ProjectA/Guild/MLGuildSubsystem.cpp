@@ -207,6 +207,7 @@ void UMLGuildSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	TrainingTable		= Settings->TrainingTable.LoadSynchronous();
 	ItemTable			= Settings->ItemTable.LoadSynchronous();
 	RequestTable		= Settings->RequestTable.LoadSynchronous(); // 선택 항목이라 아래 경고에 포함하지 않음
+	TitleTable			= Settings->TitleTable.LoadSynchronous();   // 선택 항목
 	if (!GradeTable || !TalentTable || !FamilyUpgradeTable || !TrainingTable || !ItemTable)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[ML] Guild: set Grade/Talent/FamilyUpgrade/Training/Item Table in Project Settings > Mercenary Legacy"));
@@ -238,6 +239,35 @@ void UMLGuildSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		RefreshRequests();
 		Save();
 	}
+
+	// design §8.7: M9-2 이전 저장은 길드 누적 기록이 없으므로 한 번만 이어받음
+	if (!SaveData->bGuildStatsSeeded)
+	{
+		SeedGuildStats();
+		Save();
+	}
+}
+
+void UMLGuildSubsystem::SeedGuildStats()
+{
+	FMLGuildStats& Stats = SaveData->GuildStats;
+	auto AddMerc = [&Stats](const FMLMercData& Merc)
+	{
+		Stats.Extractions += Merc.Extractions;
+		Stats.BossKills += Merc.BossKills;
+		Stats.GoldEarned += Merc.GoldEarned;
+	};
+	for (const FMLHallEntry& Entry : SaveData->HallOfFame)
+	{
+		AddMerc(Entry.Merc);
+		if (Entry.Reason == EMLLeaveReason::Fallen) ++Stats.Deaths;
+	}
+	if (SaveData->bHasMerc) AddMerc(SaveData->Merc);
+	SaveData->bGuildStatsSeeded = true; // 처치·엘리트 처치는 기록이 없어 0부터
+
+	// MLVerify(M9-2): M9-3에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Guild stats seeded: extract=%d boss=%d gold=%d deaths=%d (hall=%d)"),
+		Stats.Extractions, Stats.BossKills, Stats.GoldEarned, Stats.Deaths, SaveData->HallOfFame.Num());
 }
 
 bool UMLGuildSubsystem::Contract(EMLGrade Grade, int32 Index)
@@ -298,12 +328,52 @@ FMLRunReward UMLGuildSubsystem::EndRun(const FMLRunReport& Report)
 	float FamilyXPPercent = 0.f;
 	GetFamilyBonuses(FamilyStatPercent, FamilyGoldPercent, FamilyXPPercent);
 
+	// design §8.7: 칭호 골드·경험치 보너스는 가문 보너스에 더함 (용병이 전당으로 가기 전에 읽음)
+	if (const FMLTitleRow* Title = SaveData->bHasMerc ? GetMercTitle(SaveData->Merc) : nullptr)
+	{
+		FamilyGoldPercent += Title->GoldPercent;
+		FamilyXPPercent += Title->XPPercent;
+	}
+
+	// 새 칭호 알림용: 누적 기록을 바꾸기 전에 해금 목록을 기억
+	TArray<FName> UnlockedBefore;
+	for (const FName& Id : GetTitleIds())
+	{
+		if (IsTitleUnlocked(Id)) UnlockedBefore.Add(Id);
+	}
+
 	if (Report.bExtracted)
 	{
 		// design §8.3 가문의 부. shortcut: 용병 등급 골드 보정 (design §8.6)은 M9 밸런스에서
 		Reward.GoldAdded = FMath::RoundToInt(Report.Gold * (1.f + FamilyGoldPercent / 100.f));
 		SaveData->Gold += Reward.GoldAdded;
 	}
+
+	// design §8.7 길드 누적 기록: 처치는 사망해도 누적, 탈출·골드는 탈출 시만
+	FMLGuildStats& Stats = SaveData->GuildStats;
+	Stats.Kills += Report.Kills;
+	Stats.EliteKills += Report.EliteKills;
+	if (Report.bBossKilled) ++Stats.BossKills;
+	if (Report.bExtracted)
+	{
+		++Stats.Extractions;
+		Stats.GoldEarned += Reward.GoldAdded;
+	}
+	else if (SaveData->bHasMerc)
+	{
+		++Stats.Deaths;
+	}
+
+	for (const FName& Id : GetTitleIds())
+	{
+		const FMLTitleRow* Title = FindTitle(Id);
+		if (Title && IsTitleUnlocked(Id) && !UnlockedBefore.Contains(Id)) Reward.NewTitles.Add(Title->Name);
+	}
+
+	// MLVerify(M9-2): M9-3에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Guild stats: kills=%d elites=%d boss=%d extract=%d deaths=%d gold=%d | new titles=%d titleGold%%=%.0f titleXP%%=%.0f"),
+		Stats.Kills, Stats.EliteKills, Stats.BossKills, Stats.Extractions, Stats.Deaths, Stats.GoldEarned, Reward.NewTitles.Num(),
+		FamilyGoldPercent, FamilyXPPercent);
 	
 	// design §6.3: 원정 아이템은 탈출할 때만 창고에 들어감
 	if (Report.bExtracted)
@@ -445,8 +515,67 @@ FMLStatBlock UMLGuildSubsystem::ComputeStats(const FMLMercData& Merc) const
 	{
 		Out[i] *= 1.f + FamilyStatPercent[i] / 100.f; // design §8.3 가문의 힘/방패/혈통
 	}
-	
+
+	// design §8.7: 칭호 (가문 다음, 재능과 같은 비율 + 고정값)
+	if (const FMLTitleRow* Title = GetMercTitle(Merc))
+	{
+		for (int32 i = 0; i < FMLStatBlock::Num; ++i)
+		{
+			Out[i] = Out[i] * (1.f + Title->BonusPercent[i] / 100.f) + Title->Flat[i];
+		}
+	}
+
 	return Out;
+}
+
+const FMLTitleRow* UMLGuildSubsystem::FindTitle(FName TitleId) const
+{
+	return TitleTable && !TitleId.IsNone() ? TitleTable->FindRow<FMLTitleRow>(TitleId, TEXT("MLGuild")) : nullptr;
+}
+
+TArray<FName> UMLGuildSubsystem::GetTitleIds() const
+{
+	return TitleTable ? TitleTable->GetRowNames() : TArray<FName>();
+}
+
+int32 UMLGuildSubsystem::GetTitleProgress(FName TitleId) const
+{
+	const FMLTitleRow* Title = FindTitle(TitleId);
+	return Title && SaveData ? SaveData->GuildStats.Get(Title->Stat) : 0;
+}
+
+bool UMLGuildSubsystem::IsTitleUnlocked(FName TitleId) const
+{
+	const FMLTitleRow* Title = FindTitle(TitleId);
+	return Title && GetTitleProgress(TitleId) >= Title->Target;
+}
+
+const FMLTitleRow* UMLGuildSubsystem::GetMercTitle(const FMLMercData& Merc) const
+{
+	return IsTitleUnlocked(Merc.Title) ? FindTitle(Merc.Title) : nullptr;
+}
+
+bool UMLGuildSubsystem::EquipTitle(FName TitleId)
+{
+	if (!CanAct(TEXT("equip title")) || !SaveData->bHasMerc) return false;
+	if (!TitleId.IsNone() && !IsTitleUnlocked(TitleId)) return false;
+
+	SaveData->Merc.Title = TitleId;
+
+	// MLVerify(M9-2): M9-3에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Title equip: %s -> %s"), *SaveData->Merc.Name, *TitleId.ToString());
+	Save();
+	return true;
+}
+
+bool UMLGuildSubsystem::GetActiveTitle(FText& OutName, EMLTitleRarity& OutRarity) const
+{
+	const FMLTitleRow* Title = SaveData && SaveData->bHasMerc ? GetMercTitle(SaveData->Merc) : nullptr;
+	if (!Title) return false;
+
+	OutName = Title->Name;
+	OutRarity = Title->Rarity;
+	return true;
 }
 
 int32 UMLGuildSubsystem::GetXPToNextLevel(const FMLMercData& Merc) const
@@ -1098,6 +1227,7 @@ void UMLGuildSubsystem::AddItem(FName ItemId)
 void UMLGuildSubsystem::CreateNewSave()
 {
 	SaveData = Cast<UMLSaveGame>(UGameplayStatics::CreateSaveGameObject(UMLSaveGame::StaticClass()));
+	SaveData->bGuildStatsSeeded = true; // 새 저장은 이어받을 기록이 없음
 	RefreshCandidates();
 	RefreshShop();
 	RefreshRequests();

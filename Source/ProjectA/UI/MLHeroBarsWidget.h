@@ -4,10 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Guild/MLGuildTypes.h"
 #include "MLHeroBarsWidget.generated.h"
 
 class UAbilitySystemComponent;
 class UProgressBar;
+class UTextBlock;
 struct FOnAttributeChangeData;
 
 // 머리 위 HP + 쉴드 바, AMLHeroCharacter::HeroBars가 표시 (스크린 공간).
@@ -19,6 +21,9 @@ class PROJECTA_API UMLHeroBarsWidget : public UUserWidget
 public:
 	void InitBars(UAbilitySystemComponent* ASC);
 
+	// design §8.7: 장착 칭호를 등급 색으로 표시. 이름이 비면 숨김
+	void SetTitle(const FText& TitleName, EMLTitleRarity Rarity);
+
 protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 	
@@ -27,6 +32,14 @@ protected:
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UProgressBar> ShieldBar;
+
+	// design §8.7 칭호 (HP 바 위). 없으면 칭호를 표시하지 않음
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> TitleText;
+
+	// 칭호 등급 색: 일반(흰) / 희귀(파랑) / 영웅(보라) / 전설(금)
+	UPROPERTY(EditAnywhere, Category = "Title")
+	TArray<FLinearColor> TitleColors = { FLinearColor(0.92f, 0.92f, 0.92f), FLinearColor(0.35f, 0.65f, 1.f), FLinearColor(0.72f, 0.45f, 1.f), FLinearColor(1.f, 0.78f, 0.25f) };
 	
 	// design §6.4: 바가 차오르는 시간(초) (내려갈 때는 즉시)
 	UPROPERTY(EditDefaultsOnly, Category = "Bars", meta = (ClampMin = "0.01"))

@@ -28,7 +28,7 @@ public:
 protected:
 	virtual void NativeOnInitialized() override;
 
-	// "창고 N/40"
+	// "보관함 N/40"
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> CountText;
 

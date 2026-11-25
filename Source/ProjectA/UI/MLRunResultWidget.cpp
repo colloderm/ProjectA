@@ -51,7 +51,7 @@ void UMLRunResultWidget::Setup(const FMLRunSummary& Summary)
 	{
 		const FText Names = FText::Join(FText::FromString(TEXT(", ")), Reward.ItemNames);
 		ItemLine = Reward.AutoSoldGold > 0
-			? FText::Format(NSLOCTEXT("ML", "ResultItemsSold", "\n장비 획득: {0} (창고 가득: +{1}G 자동 판매)"), Names, FText::AsNumber(Reward.AutoSoldGold))
+			? FText::Format(NSLOCTEXT("ML", "ResultItemsSold", "\n장비 획득: {0} (보관함 가득: +{1}G 자동 판매)"), Names, FText::AsNumber(Reward.AutoSoldGold))
 			: FText::Format(NSLOCTEXT("ML", "ResultItems", "\n장비 획득: {0}"), Names);
 	}
 	else if (Reward.ItemsLost > 0)
@@ -75,10 +75,15 @@ void UMLRunResultWidget::Setup(const FMLRunSummary& Summary)
 					Reward.RequestName, FText::AsNumber(Reward.RequestProgress), FText::AsNumber(Reward.RequestTarget));
 	}
 
+	// design §8.7: 이번 원정으로 새로 해금된 칭호
+	const FText TitleLine = Reward.NewTitles.Num() > 0
+		? FText::Format(NSLOCTEXT("ML", "ResultNewTitles", "\n새 칭호: {0}"), FText::Join(FText::FromString(TEXT(", ")), Reward.NewTitles))
+		: FText::GetEmpty();
+
 	DetailText->SetText(FText::Format(
-		NSLOCTEXT("ML", "ResultDetail", "도달: {0}구역 · 방 {1}\n생존 시간: {2}\n처치: {3}\n판 레벨: {4}\n{5}{6}{7}{8}"),
+		NSLOCTEXT("ML", "ResultDetail", "도달: {0}구역 · 방 {1}\n생존 시간: {2}\n처치: {3}\n판 레벨: {4}\n{5}{6}{7}{8}{9}"),
 		FText::AsNumber(Summary.Zone), FText::AsNumber(Summary.Room), TimeText,
-		FText::AsNumber(Summary.Kills), FText::AsNumber(Summary.RunLevel), GoldLine, MercLine, ItemLine, RequestLine));
+		FText::AsNumber(Summary.Kills), FText::AsNumber(Summary.RunLevel), GoldLine, MercLine, ItemLine, RequestLine, TitleLine));
 	
 	// design §6 HUD 피해 리포트: 원정 합계
 	const int32 CombatSecs = FMath::RoundToInt(Summary.CombatSeconds);

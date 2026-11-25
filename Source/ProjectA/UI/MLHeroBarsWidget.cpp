@@ -4,6 +4,7 @@
 
 #include "AbilitySystemComponent.h"
 #include "Components/ProgressBar.h"
+#include "Components/TextBlock.h"
 #include "GAS/MLAttributeSet.h"
 
 void UMLHeroBarsWidget::InitBars(UAbilitySystemComponent* ASC)
@@ -19,6 +20,19 @@ void UMLHeroBarsWidget::InitBars(UAbilitySystemComponent* ASC)
 	}
 
 	RefreshBars();
+}
+
+void UMLHeroBarsWidget::SetTitle(const FText& TitleName, EMLTitleRarity Rarity)
+{
+	if (!TitleText) return;
+
+	TitleText->SetText(TitleName);
+	const int32 ColorIndex = static_cast<int32>(Rarity);
+	if (TitleColors.IsValidIndex(ColorIndex))
+	{
+		TitleText->SetColorAndOpacity(FSlateColor(TitleColors[ColorIndex]));
+	}
+	TitleText->SetVisibility(TitleName.IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
 }
 
 void UMLHeroBarsWidget::HandleAttributeChanged(const FOnAttributeChangeData& ChangeData)

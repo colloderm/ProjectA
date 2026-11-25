@@ -72,7 +72,6 @@ private:
 	float ShotHitRadius = 50.f;
 
 	FTimerHandle ShotTimerHandle;
-	int32 VerifyShotFires = 0; // MLVerify(M9-1c): M9-2에서 제거
 
 	// RotatingMovementComponent가 있는 BP (yaw 속도 = 궤도 속도), 메시는 필요 없음
 	UPROPERTY(EditDefaultsOnly, Category = "Blades")
