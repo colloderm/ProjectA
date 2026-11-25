@@ -90,6 +90,9 @@ public:
 	// 방 종료: 활성 적을 모두 숨김, 드롭 없음. 정리한 수를 반환.
 	int32 ClearAll();
 	
+	// 강적 퇴각: 드롭도 처치 알림도 없이 사라짐
+	void RemoveEnemy(int32 Index);
+
 	// 보스 제어 (design §6.5)
 	bool IsEnemyActive(int32 Index) const { return Enemies.IsValidIndex(Index) && Enemies[Index].bActive; }
 	AMLEnemyActor* GetEnemyActor(int32 Index) const { return Enemies.IsValidIndex(Index) ? Enemies[Index].Actor.Get() : nullptr; }

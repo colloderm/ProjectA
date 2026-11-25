@@ -17,7 +17,6 @@ enum class EMLRoomType : uint8
 	Gold,
 	Rest,
 	Shop,
-	Grave,
 	Boss
 };
 
@@ -101,7 +100,6 @@ namespace MLRun
 		case EMLRoomType::Gold:  return NSLOCTEXT("ML", "RoomGold",   "황금");
 		case EMLRoomType::Rest:  return NSLOCTEXT("ML", "RoomRest",   "휴식터");
 		case EMLRoomType::Shop:  return NSLOCTEXT("ML", "RoomShop",   "상점");
-		case EMLRoomType::Grave: return NSLOCTEXT("ML", "RoomGrave",  "묘비");
 		case EMLRoomType::Boss:  return NSLOCTEXT("ML", "RoomBoss",   "보스");
 		default:                 return NSLOCTEXT("ML", "RoomNormal", "일반");
 		}
