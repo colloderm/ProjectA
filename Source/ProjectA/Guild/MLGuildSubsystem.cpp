@@ -3,6 +3,7 @@
 #include "MLGuildSubsystem.h"
 
 #include "Engine/DataTable.h"
+#include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "Guild/MLGuildSettings.h"
@@ -1321,6 +1322,7 @@ void UMLGuildSubsystem::AddGrave(int32 Zone, EMLAttackType WeaponType)
 	if (!SaveData->bHasMerc || !LeaveGrave(Copy, Zone, WeaponType))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[ML] Guild: add grave refused (no merc or nothing equipped)"));
+		if (GEngine) GEngine->AddOnScreenDebugMessage(INDEX_NONE, 5.f, FColor::Red, TEXT("AddGrave 거절: 용병이 없거나 장비를 끼지 않음"));
 		return;
 	}
 	Save();

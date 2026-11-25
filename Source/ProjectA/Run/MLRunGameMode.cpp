@@ -135,6 +135,8 @@ void AMLRunGameMode::StartRoom(EMLRoomType NewRoomType)
 	RoomElitesKilled = 0;
 	bRoomHasPursuer = false;
 	bPursuerPending = false;
+	bGhostPending = false;
+	bGhostWarned = false;
 	bGhostDefeated = false;
 	// design §6 HUD 피해 리포트: 전투 방만; 방 사이에 준 피해는 버림
 	LastRoomDamage.Reset();
@@ -157,13 +159,12 @@ void AMLRunGameMode::StartRoom(EMLRoomType NewRoomType)
 	// design §6.2.2: 탐욕은 방마다 한 번 읽으므로 방 도중에 어려워지지 않음
 	const bool bGoldRoom = NewRoomType == EMLRoomType::Gold;
 	const bool bEliteRoom = NewRoomType == EMLRoomType::Elite;
-	const bool bGraveRoom = NewRoomType == EMLRoomType::Grave;
 	const FMLZoneSpawnConfig Config = GetZoneSpawn();
 	const int32 Greed = GetGreedLevel();
 	RoomSpeedMult = 1.f + GreedSpeedPerLevel * Greed;
-	// 황금 / 정예 / 묘비 방은 자기 목표로 끝나므로 일반 적이 바닥나지 않음.
-	RoomQuota = (bGoldRoom || bEliteRoom || bGraveRoom) ? MAX_int32 : FMath::RoundToInt(Config.EnemiesPerRoom * (1.f + GreedSpawnPerLevel * Greed));
-	RoomEliteCount = (bGoldRoom || bGraveRoom) ? 0 : (bEliteRoom ? Config.EliteRoomElites : Config.ElitesPerRoom);
+	// 황금 / 정예 방은 자기 목표로 끝나므로 일반 적이 바닥나지 않음.
+	RoomQuota = (bGoldRoom || bEliteRoom) ? MAX_int32 : FMath::RoundToInt(Config.EnemiesPerRoom * (1.f + GreedSpawnPerLevel * Greed));
+	RoomEliteCount = bGoldRoom ? 0 : (bEliteRoom ? Config.EliteRoomElites : Config.ElitesPerRoom);
 
 	// design §6.2.2: 탐욕 3 이상이면 모든 전투 방에 추격자 엘리트 추가
 	if (Greed >= PursuerGreedLevel)
@@ -182,46 +183,89 @@ void AMLRunGameMode::StartRoom(EMLRoomType NewRoomType)
 	{
 		StartEliteRoom();
 	}
-	else if (bGraveRoom)
+	else
 	{
-		StartGraveRoom();
+		RollGhost();
 	}
 
 	SetRunState(EMLRunState::Combat);
 }
 
-void AMLRunGameMode::StartGraveRoom()
+void AMLRunGameMode::RollGhost()
 {
-	RoomSecondsLeft = FMath::CeilToInt(GraveRoomSeconds);
-	GetWorldTimerManager().SetTimer(RoomTimerHandle, this, &AMLRunGameMode::RoomSecondTick, 1.f, true);
-
+	// design §6.2.3: 한 원정에 1번, 원정의 첫 방(기술이 없을 때)은 제외
+	const bool bFirstRoom = CurrentZone == 1 && CurrentRoom == 1;
 	const UMLGuildSubsystem* Guild = GetGuild();
 	const FMLGrave* Grave = Guild ? Guild->FindGraveInZone(CurrentZone) : nullptr;
-	const AMLHeroCharacter* Hero = GetHero();
-	UMLEnemySubsystem* EnemySub = GetWorld()->GetSubsystem<UMLEnemySubsystem>();
+	if (bGhostOffered || bFirstRoom || !GhostClass || !Grave || FMath::FRand() >= GraveChance) return;
 
-	// design §6.2.3: 망령 체력 = 구역 배율 × 옛 용병 등급 보정 (지금 용병의 보정은 쓰지 않음)
-	const FMLGradeRow* GradeRow = Grave ? Guild->FindGrade(Grave->Grade) : nullptr;
+	bGhostOffered = true;
+	bGhostPending = true;
+	RoomGrave = *Grave;
+
+	// MLVerify(M9-3b): 다음 마일스톤에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Ghost planned: id=%d %s zone=%d room=%d at kills=%d/%d"),
+		RoomGrave.MercId, *RoomGrave.Name, CurrentZone, CurrentRoom, FMath::CeilToInt(RoomQuota * GhostKillStep), RoomQuota);
+}
+
+void AMLRunGameMode::SpawnGhost()
+{
+	const AMLHeroCharacter* Hero = GetHero();
+	const UMLGuildSubsystem* Guild = GetGuild();
+	const UMLSaveGame* Save = Guild ? Guild->GetSaveData() : nullptr;
+	UMLEnemySubsystem* EnemySub = GetWorld()->GetSubsystem<UMLEnemySubsystem>();
+	if (RunState != EMLRunState::Combat || !Hero || Hero->IsDead() || !EnemySub || !Save) return;
+
+	// design §6.2.3: 체력 = 구역 배율 × 옛 용병 등급 보정. 옛 등급은 현재 용병 등급 +1까지만 (강제 전투라서)
+	const EMLGrade GhostGrade = FMath::Min(RoomGrave.Grade, static_cast<EMLGrade>(static_cast<int32>(Save->Merc.Grade) + 1));
+	const FMLGradeRow* GradeRow = Guild->FindGrade(GhostGrade);
 	const float GradeScale = GradeRow ? GradeRow->EnemyScale : 1.f;
 	const float ZoneHealth = ZoneSpawns.IsValidIndex(CurrentZone - 1) ? ZoneSpawns[CurrentZone - 1].HealthMult : 1.f;
 	const FVector ScreenUp = FRotator(0.f, GateFacingYaw, 0.f).Vector();
 	int32 GhostIndex = INDEX_NONE;
-	if (!Grave || !GhostClass || !Hero || !EnemySub
-		|| !EnemySub->SpawnEnemy(GhostClass, Hero->GetActorLocation() + ScreenUp * GhostSpawnDistance, ZoneHealth * GradeScale, 1.f,
-			GetZoneSpawn().GoldMult, EMLEliteTrait::None, &GhostIndex))
+	if (!EnemySub->SpawnEnemy(GhostClass, Hero->GetActorLocation() + ScreenUp * GhostSpawnDistance, ZoneHealth * GradeScale, 1.f,
+		GetZoneSpawn().GoldMult, EMLEliteTrait::None, &GhostIndex))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[ML] RunGameMode: ghost could not spawn (GhostClass / grave in zone %d?), room skipped"), CurrentZone);
-		GetWorldTimerManager().SetTimerForNextTick(this, &AMLRunGameMode::EndRoom);
+		GetWorldTimerManager().SetTimer(GhostTimerHandle, this, &AMLRunGameMode::SpawnGhost, 1.f, false); // 풀이 가득 참: 재시도
 		return;
 	}
 
-	RoomGrave = *Grave;
+	bGhostPending = false;
 	GhostActor = Cast<AMLGhostActor>(EnemySub->GetEnemyActor(GhostIndex));
 	if (GhostActor) GhostActor->StartGhost(GhostIndex, RoomGrave.WeaponType, GradeScale);
+	GhostSecondsLeft = FMath::CeilToInt(GhostSeconds);
+	GetWorldTimerManager().SetTimer(GhostTimerHandle, this, &AMLRunGameMode::GhostSecondTick, 1.f, true);
+	OnRoomStateChanged.Broadcast(); // HUD: 안내 → 보스 패널
 
-	// MLVerify(M9-3): 다음 마일스톤에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Ghost start: id=%d %s zone=%d weapon=%d hpMult=%.2f (zone %.2f x grade %.2f)"),
-		RoomGrave.MercId, *RoomGrave.Name, CurrentZone, static_cast<int32>(RoomGrave.WeaponType), ZoneHealth * GradeScale, ZoneHealth, GradeScale);
+	// MLVerify(M9-3b): 다음 마일스톤에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Ghost start: id=%d %s zone=%d weapon=%d hpMult=%.2f (zone %.2f x grade %.2f) grade old=%d merc=%d used=%d"),
+		RoomGrave.MercId, *RoomGrave.Name, CurrentZone, static_cast<int32>(RoomGrave.WeaponType), ZoneHealth * GradeScale, ZoneHealth, GradeScale,
+		static_cast<int32>(RoomGrave.Grade), static_cast<int32>(Save->Merc.Grade), static_cast<int32>(GhostGrade));
+}
+
+void AMLRunGameMode::GhostSecondTick()
+{
+	--GhostSecondsLeft;
+	if (GhostSecondsLeft <= 0)
+	{
+		// design §6.2.3: 물러남, 묘비는 남음
+		UMLEnemySubsystem* EnemySub = GetWorld()->GetSubsystem<UMLEnemySubsystem>();
+		if (EnemySub && GhostActor) EnemySub->RemoveEnemy(GhostActor->GetEnemyIndex());
+		EndGhost();
+		if (IsRoomCleared()) EndRoom(); // 일반 적을 이미 다 잡았으면 더 부를 처치가 없음
+	}
+	OnRoomStateChanged.Broadcast(); // HUD 카운트다운
+}
+
+void AMLRunGameMode::EndGhost()
+{
+	GetWorldTimerManager().ClearTimer(GhostTimerHandle);
+	if (!GhostActor) return;
+
+	// MLVerify(M9-3b): 다음 마일스톤에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Ghost end: defeated=%d secondsLeft=%d enemiesLeft=%d"), bGhostDefeated ? 1 : 0, GhostSecondsLeft, GetEnemiesLeft());
+	GhostActor->StopGhost();
+	GhostActor = nullptr;
 }
 
 void AMLRunGameMode::StartGoldRoom()
@@ -252,7 +296,7 @@ void AMLRunGameMode::RoomSecondTick()
 	OnRoomStateChanged.Broadcast(); // HUD 카운트다운
 	if (RoomSecondsLeft > 0) return;
 
-	EndRoom(); // 슬라임 도망 / 정예 · 묘비 방 시간 초과: 남은 적은 드롭 없이 사라짐
+	EndRoom(); // 슬라임 도망 / 정예 방 시간 초과: 남은 적은 드롭 없이 사라짐
 }
 
 void AMLRunGameMode::StartEliteRoom()
@@ -359,7 +403,7 @@ void AMLRunGameMode::SpawnTick()
 	int32 MaxAlive = Config.MaxAlive;
 	if (CurrentRoomType == EMLRoomType::Gold) MaxAlive = FMath::Min(MaxAlive, GoldRoomMaxAlive);
 	else if (CurrentRoomType == EMLRoomType::Elite) MaxAlive = FMath::Min(MaxAlive, EliteRoomMaxAlive);
-	else if (CurrentRoomType == EMLRoomType::Grave) MaxAlive = FMath::Min(MaxAlive, GraveRoomMaxAlive + 1); // + 망령
+	else if (bGhostPending) --MaxAlive; // 3구역은 MaxAlive = 풀 크기: 강적 자리를 비워 둠
 
 	const FVector HeroLoc = Hero->GetActorLocation();
 	for (int32 k = 0; k < Config.SpawnPerTick && RoomSpawned < RoomQuota && EnemySub->GetActiveCount() < MaxAlive; ++k)
@@ -397,14 +441,8 @@ void AMLRunGameMode::EndRoom()
 
 	UMLEnemySubsystem* EnemySub = GetWorld()->GetSubsystem<UMLEnemySubsystem>();
 	UMLPickupSubsystem* PickupSub = GetWorld()->GetSubsystem<UMLPickupSubsystem>();
-	if (EnemySub) EnemySub->ClearAll(); // 황금 / 정예 / 묘비 방 시간 초과: 남은 적은 드롭 없이 사라짐
-	if (GhostActor)
-	{
-		// MLVerify(M9-3): 다음 마일스톤에서 제거
-		UE_LOG(LogTemp, Display, TEXT("[MLVerify] Grave room end: defeated=%d secondsLeft=%d"), bGhostDefeated ? 1 : 0, RoomSecondsLeft);
-		GhostActor->StopGhost();
-		GhostActor = nullptr;
-	}
+	if (EnemySub) EnemySub->ClearAll(); // 황금 / 정예 방 시간 초과: 남은 적은 드롭 없이 사라짐
+	EndGhost();
 	const int32 Attracted = PickupSub ? PickupSub->AttractAll() : 0;
 
 	SetRunState(EMLRunState::Collecting);
@@ -419,7 +457,7 @@ void AMLRunGameMode::HandleGemsCollected()
 {
 	if (RunState != EMLRunState::Collecting) return;
 
-	// design §6.2.3: 망령을 이겼으면 장비를 고른 뒤 포털이 열림
+	// design §6.2.3: 강적을 이겼으면 장비를 고른 뒤 포털이 열림
 	const AMLHeroCharacter* Hero = GetHero();
 	UMLRunProgressComponent* RunProgress = Hero ? Hero->GetRunProgress() : nullptr;
 	if (bGhostDefeated && RunProgress)
@@ -470,7 +508,7 @@ void AMLRunGameMode::RollPortalTypes(bool bNextIsZoneStart, TArray<EMLRoomType>&
 	{
 		const EMLRoomType Type = Pair.Key;
 		const bool bSafeRoom = Type == EMLRoomType::Rest || Type == EMLRoomType::Shop;
-		if (Pair.Value <= 0.f || Type == EMLRoomType::Boss || Type == EMLRoomType::Grave) continue; // 묘비는 가중치가 아니라 아래에서 따로 뽑음
+		if (Pair.Value <= 0.f || Type == EMLRoomType::Boss) continue;
 		if (bNextIsZoneStart && bSafeRoom) continue; // 구역의 첫 방은 전투 방
 		if (bAfterSafeRoom && bSafeRoom) continue;   // 안전 방이 연속으로 나오지 않음
 		Pool.Add(Type);
@@ -496,18 +534,6 @@ void AMLRunGameMode::RollPortalTypes(bool bNextIsZoneStart, TArray<EMLRoomType>&
 		OutTypes.Add(Pool[Pick]);
 		Pool.RemoveAt(Pick);
 		Weights.RemoveAt(Pick);
-	}
-
-	// design §6.2.3: 다음 방의 구역에 묘비가 있으면 확률로 포털 하나가 묘비 방이 됨 (한 원정에 1번)
-	const int32 NextZone = bNextIsZoneStart ? CurrentZone + 1 : CurrentZone;
-	const UMLGuildSubsystem* Guild = GetGuild();
-	if (!bGraveOffered && GhostClass && OutTypes.Num() > 0 && Guild && Guild->FindGraveInZone(NextZone) && FMath::FRand() < GraveChance)
-	{
-		bGraveOffered = true;
-		OutTypes[FMath::RandRange(0, OutTypes.Num() - 1)] = EMLRoomType::Grave;
-
-		// MLVerify(M9-3): 다음 마일스톤에서 제거
-		UE_LOG(LogTemp, Display, TEXT("[MLVerify] Grave portal: fromZone=%d room=%d nextZone=%d"), CurrentZone, CurrentRoom, NextZone);
 	}
 }
 
@@ -742,9 +768,24 @@ void AMLRunGameMode::HandleEnemyKilled(const AMLEnemyActor* Killed, bool bElite)
 	// design §6.3: 엘리트 상자는 이 구역의 드롭 단계 사용
 	if (bElite && Killed) SpawnChest(Killed->GetActorLocation(), CurrentZone);
 
+	if (GhostActor && Killed == GhostActor.Get()) // 처치 할당량에는 포함되지 않음
+	{
+		bGhostDefeated = true;
+		EndGhost();
+		OnRoomStateChanged.Broadcast();
+		if (IsRoomCleared()) GetWorldTimerManager().SetTimerForNextTick(this, &AMLRunGameMode::EndRoom);
+		return;
+	}
+
 	++RoomKills;
 	if (bElite) ++RoomElitesKilled;
-	
+
+	if (bGhostPending && !bGhostWarned && RoomKills >= FMath::CeilToInt(RoomQuota * GhostKillStep))
+	{
+		bGhostWarned = true; // 아래 브로드캐스트에서 HUD가 "강적 등장!" 표시
+		GetWorldTimerManager().SetTimer(GhostTimerHandle, this, &AMLRunGameMode::SpawnGhost, GhostWarnSeconds, false);
+	}
+
 	OnRoomStateChanged.Broadcast(); // HUD "남은 적" / "남은 엘리트"
 	
 	if (CurrentRoomType == EMLRoomType::Boss)
@@ -764,13 +805,6 @@ void AMLRunGameMode::HandleEnemyKilled(const AMLEnemyActor* Killed, bool bElite)
 		GetWorldTimerManager().SetTimerForNextTick(this, &AMLRunGameMode::EndRoom);
 		return;
 	}
-	if (CurrentRoomType == EMLRoomType::Grave && GhostActor && Killed == GhostActor.Get())
-	{
-		bGhostDefeated = true;
-		GhostActor->StopGhost();
-		GetWorldTimerManager().SetTimerForNextTick(this, &AMLRunGameMode::EndRoom);
-		return;
-	}
 	if (IsRoomCleared())
 	{
 		GetWorldTimerManager().SetTimerForNextTick(this, &AMLRunGameMode::EndRoom);
@@ -779,7 +813,7 @@ void AMLRunGameMode::HandleEnemyKilled(const AMLEnemyActor* Killed, bool bElite)
 
 bool AMLRunGameMode::IsRoomCleared() const
 {
-	const bool bAllElitesOut = RoomElitesSpawned >= RoomEliteCount && !bPursuerPending;
+	const bool bAllElitesOut = RoomElitesSpawned >= RoomEliteCount && !bPursuerPending && !bGhostPending;
 	if (CurrentRoomType == EMLRoomType::Elite)
 	{
 		return bAllElitesOut && GetElitesLeft() == 0; // 그곳의 일반 적은 목표에 포함되지 않음
@@ -792,7 +826,7 @@ bool AMLRunGameMode::IsRoomCleared() const
 // [MLRunGameMode.cpp] 파일 끝에 추가
 int32 AMLRunGameMode::GetEnemiesLeft() const
 {
-	if (RoomQuota == MAX_int32) return 0; // 황금 / 정예 / 묘비 방은 처치 할당량이 없음
+	if (RoomQuota == MAX_int32) return 0; // 황금 / 정예 방은 처치 할당량이 없음
 	return FMath::Max(0, RoomQuota + GetRoomEliteTotal() - RoomKills);
 }
 
@@ -816,6 +850,11 @@ bool AMLRunGameMode::GetGhostLocation(FVector& OutLocation) const
 
 	OutLocation = GhostActor->GetActorLocation();
 	return true;
+}
+
+FText AMLRunGameMode::GetGhostName() const
+{
+	return FText::Format(NSLOCTEXT("ML", "GhostName", "망령 {0}"), FText::FromString(RoomGrave.Name));
 }
 
 void AMLRunGameMode::SetRunState(EMLRunState NewState)
@@ -982,10 +1021,10 @@ void AMLRunGameMode::HandleBossKilled()
 bool AMLRunGameMode::GetBossHealth(float& OutPercent, FText& OutName) const
 {
 	const UMLEnemySubsystem* EnemySub = GetWorld()->GetSubsystem<UMLEnemySubsystem>();
-	if (CurrentRoomType == EMLRoomType::Grave && GhostActor)
+	if (GhostActor)
 	{
 		OutPercent = EnemySub ? EnemySub->GetEnemyHealthPercent(GhostActor->GetEnemyIndex()) : 0.f;
-		OutName = FText::Format(NSLOCTEXT("ML", "GhostName", "망령 {0}"), FText::FromString(RoomGrave.Name));
+		OutName = GetGhostName();
 		return true;
 	}
 	if (CurrentRoomType != EMLRoomType::Boss || !BossActor) return false;

@@ -405,6 +405,15 @@ int32 UMLEnemySubsystem::ClearAll()
 	return Cleared;
 }
 
+void UMLEnemySubsystem::RemoveEnemy(int32 Index)
+{
+	if (!IsEnemyActive(Index)) return;
+
+	Enemies[Index].bActive = false;
+	if (Enemies[Index].Actor) Enemies[Index].Actor->SetActorHiddenInGame(true);
+	--ActiveCount;
+}
+
 float UMLEnemySubsystem::GetEnemyHealthPercent(int32 Index) const
 {
 	if (!IsEnemyActive(Index) || Enemies[Index].MaxHealth <= 0.f) return 0.f;

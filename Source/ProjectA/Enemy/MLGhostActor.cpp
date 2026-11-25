@@ -2,16 +2,45 @@
 
 #include "MLGhostActor.h"
 
+#include "Animation/AnimSingleNodeInstance.h"
+#include "Animation/BlendSpace.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Enemy/MLEnemySubsystem.h"
+#include "Materials/MaterialInterface.h"
 #include "Skills/MLSkillVisualActor.h"
 #include "TimerManager.h"
+
+AMLGhostActor::AMLGhostActor()
+{
+	BodyMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("BodyMesh"));
+	BodyMesh->SetupAttachment(RootComponent);
+	BodyMesh->SetRelativeLocationAndRotation(FVector(0.f, 0.f, -88.f), FRotator(0.f, -90.f, 0.f)); // 액터 Z = 영웅 캡슐 중심, 메시는 +Y를 봄
+	BodyMesh->SetCollisionProfileName(TEXT("NoCollision")); // 명중은 서브시스템의 거리 판정으로 처리
+	BodyMesh->SetGenerateOverlapEvents(false);
+	BodyMesh->SetCanEverAffectNavigation(false);
+}
+
+void AMLGhostActor::BeginPlay()
+{
+	Super::BeginPlay();
+	if (MoveBlendSpace) BodyMesh->PlayAnimation(MoveBlendSpace, true);
+}
+
+void AMLGhostActor::SetMoving(bool bMoving)
+{
+	if (UAnimSingleNodeInstance* Anim = BodyMesh->GetSingleNodeInstance())
+	{
+		Anim->SetBlendSpacePosition(FVector(0.f, bMoving ? MoveSpeed : 0.f, 0.f));
+	}
+}
 
 void AMLGhostActor::StartGhost(int32 InEnemyIndex, EMLAttackType InWeaponType, float InDamageScale)
 {
 	EnemyIndex = InEnemyIndex;
 	WeaponType = InWeaponType;
 	DamageScale = InDamageScale;
-	SetEliteLook(true); // 크기 + 오버레이만; 특성은 없음
+	BodyMesh->SetOverlayMaterial(EliteOverlayMaterial); // 액터 크기는 그대로: 키우면 발이 바닥에 묻힘 (크기는 BP의 BodyMesh에서)
+	SetMoving(true);
 	GetWorldTimerManager().SetTimer(AttackTimerHandle, this, &AMLGhostActor::BeginAttack, AttackGap, false);
 }
 
@@ -38,6 +67,7 @@ void AMLGhostActor::BeginAttack()
 	}
 
 	EnemySub->SetEnemyRooted(EnemyIndex, true);
+	SetMoving(false);
 	AttackOrigin = bStaff ? HeroLoc : GetActorLocation();
 	const FVector FloorOffset(0.f, 0.f, TelegraphZOffset);
 	if (bBow)
@@ -64,6 +94,7 @@ void AMLGhostActor::ExecuteAttack()
 	if (!EnemySub || !EnemySub->IsEnemyActive(EnemyIndex) || EnemySub->GetEnemyActor(EnemyIndex) != this) return;
 
 	EnemySub->SetEnemyRooted(EnemyIndex, false);
+	SetMoving(true);
 	FVector HeroLoc;
 	if (!GetHeroLocation(HeroLoc)) return;
 

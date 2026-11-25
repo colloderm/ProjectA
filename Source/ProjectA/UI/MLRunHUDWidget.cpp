@@ -125,15 +125,15 @@ void UMLRunHUDWidget::RefreshRoom()
 	const FText Room = FText::AsNumber(RunMode->GetRoomInZone());
 	const FText Rooms = FText::AsNumber(RunMode->GetRoomsInZone());
 
-	// 황금·묘비 방 강조 문구: 목표 처치·시간 종료로 방이 끝나면 Combat이 아니게 되어 바로 사라짐
-	const bool bGrave = RunMode->GetCurrentRoomType() == EMLRoomType::Grave;
-	const bool bObjective = RunMode->GetRunState() == EMLRunState::Combat && (bGrave || RunMode->GetCurrentRoomType() == EMLRoomType::Gold);
+	// 황금 방 목표 / 강적 등장 안내: 방이 끝나면 Combat이 아니게 되어 바로 사라짐
+	const bool bGhostWarning = RunMode->IsGhostWarning(); // 일반 방에서만, 황금 방과 겹치지 않음
+	const bool bObjective = RunMode->GetRunState() == EMLRunState::Combat && (bGhostWarning || RunMode->GetCurrentRoomType() == EMLRoomType::Gold);
 	if (bObjective != bObjectiveShown)
 	{
 		bObjectiveShown = bObjective;
 		if (bObjective)
 		{
-			ObjectiveText->SetText(bGrave ? NSLOCTEXT("ML", "HUDGraveObjective", "망령을 쓰러뜨리세요!")
+			ObjectiveText->SetText(bGhostWarning ? FText::Format(NSLOCTEXT("ML", "HUDGhostWarning", "강적 등장! {0}"), RunMode->GetGhostName())
 				: NSLOCTEXT("ML", "HUDGoldObjective", "황금 슬라임을 잡으세요!"));
 		}
 		ObjectiveText->SetVisibility(bObjective ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
@@ -151,10 +151,6 @@ void UMLRunHUDWidget::RefreshRoom()
 			{
 				NewText = FText::Format(NSLOCTEXT("ML", "HUDRoomGold", "{0}구역 · 방 {1}/{2} · 황금 슬라임 {3}"), Zone, Room, Rooms, Time);
 			}
-			else if (RoomType == EMLRoomType::Grave)
-			{
-				NewText = FText::Format(NSLOCTEXT("ML", "HUDRoomGrave", "{0}구역 · 방 {1}/{2} · 묘비 {3}"), Zone, Room, Rooms, Time);
-			}
 			else if (RoomType == EMLRoomType::Elite)
 			{
 				NewText = FText::Format(NSLOCTEXT("ML", "HUDRoomElite", "{0}구역 · 방 {1}/{2} · 남은 엘리트 {3} · {4}"),
@@ -171,6 +167,11 @@ void UMLRunHUDWidget::RefreshRoom()
 			{
 				NewText = FText::Format(NSLOCTEXT("ML", "HUDRoomKills", "{0}구역 · 방 {1}/{2} · 남은 적 {3}"),
 					Zone, Room, Rooms, FText::AsNumber(RunMode->GetEnemiesLeft()));
+				if (const int32 GhostSecs = RunMode->GetGhostSecondsLeft(); GhostSecs > 0)
+				{
+					NewText = FText::Format(NSLOCTEXT("ML", "HUDRoomGhost", "{0} · 강적 {1}"), NewText,
+						FText::FromString(FString::Printf(TEXT("%d:%02d"), GhostSecs / 60, GhostSecs % 60)));
+				}
 			}
 			break;
 		}

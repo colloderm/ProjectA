@@ -7,6 +7,9 @@
 #include "Enemy/MLEnemyActor.h"
 #include "MLGhostActor.generated.h"
 
+class UBlendSpace;
+class USkeletalMeshComponent;
+
 // design §6.2.3 망령. 보스처럼 UMLEnemySubsystem에 들어 있고(모든 기술이 평소처럼 맞힘),
 // 이 액터는 옛 용병의 무기 방식으로 예고 공격 타이머만 돌림.
 UCLASS()
@@ -15,12 +18,24 @@ class PROJECTA_API AMLGhostActor : public AMLEnemyActor
 	GENERATED_BODY()
 
 public:
+	AMLGhostActor();
+
 	// InDamageScale: 옛 용병 등급 보정
 	void StartGhost(int32 InEnemyIndex, EMLAttackType InWeaponType, float InDamageScale);
 	void StopGhost();
 	int32 GetEnemyIndex() const { return EnemyIndex; }
 
 protected:
+	virtual void BeginPlay() override;
+
+	// 사람 형태 (부모의 VisualMesh는 비워 둠)
+	UPROPERTY(VisibleAnywhere, Category = "Ghost")
+	TObjectPtr<USkeletalMeshComponent> BodyMesh;
+
+	// 정지·이동 블렌드 스페이스 (X = 방향, Y = 속도). Character가 아니라서 ABP 대신 직접 재생
+	UPROPERTY(EditDefaultsOnly, Category = "Ghost")
+	TObjectPtr<UBlendSpace> MoveBlendSpace;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Ghost")
 	float AttackDamage = 15.f;
 
@@ -65,6 +80,7 @@ private:
 	void BeginAttack();
 	void ExecuteAttack();
 	bool IsHit(const FVector& HeroLoc) const;
+	void SetMoving(bool bMoving);
 
 	FTimerHandle AttackTimerHandle;
 	EMLAttackType WeaponType = EMLAttackType::Sword;
