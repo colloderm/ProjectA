@@ -193,6 +193,19 @@ namespace
 		{
 			if (UMLGuildSubsystem* Guild = GetGuild(World); Guild && Args.Num() > 0) Guild->AddItem(FName(*Args[0]));
 		}));
+
+	FAutoConsoleCommandWithWorldAndArgs GuildAddGraveCmd(TEXT("ML.Guild.AddGrave"), TEXT("ML.Guild.AddGrave <Zone> <sword|bow|staff> (copies the current merc's equipment)"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			UMLGuildSubsystem* Guild = GetGuild(World);
+			const int64 Type = Args.Num() > 1 ? StaticEnum<EMLAttackType>()->GetValueByNameString(Args[1]) : INDEX_NONE;
+			if (!Guild || Type == INDEX_NONE)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[ML] Guild: usage ML.Guild.AddGrave <Zone> <sword|bow|staff>"));
+				return;
+			}
+			Guild->AddGrave(FMath::Max(1, FCString::Atoi(*Args[0])), static_cast<EMLAttackType>(Type));
+		}));
 }
 
 void UMLGuildSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -366,11 +379,16 @@ FMLRunReward UMLGuildSubsystem::EndRun(const FMLRunReport& Report)
 		if (Title && IsTitleUnlocked(Id) && !UnlockedBefore.Contains(Id)) Reward.NewTitles.Add(Title->Name);
 	}
 
-	// MLVerify(M9-2): M9-3에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Guild stats: kills=%d elites=%d boss=%d extract=%d deaths=%d gold=%d | new titles=%d titleGold%%=%.0f titleXP%%=%.0f"),
-		Stats.Kills, Stats.EliteKills, Stats.BossKills, Stats.Extractions, Stats.Deaths, Stats.GoldEarned, Reward.NewTitles.Num(),
-		FamilyGoldPercent, FamilyXPPercent);
-	
+	// design §6.2.3: 되찾았거나 기한이 끝난 묘비 제거 (이번에 죽은 용병의 묘비는 아래에서 추가)
+	for (FMLGrave& Grave : SaveData->Graves)
+	{
+		--Grave.RunsLeft;
+	}
+	SaveData->Graves.RemoveAll([&Report](const FMLGrave& Grave)
+	{
+		return Grave.RunsLeft <= 0 || Grave.MercId == Report.ClearedGraveMercId;
+	});
+
 	// design §6.3: 원정 아이템은 탈출할 때만 창고에 들어감
 	if (Report.bExtracted)
 	{
@@ -414,6 +432,11 @@ FMLRunReward UMLGuildSubsystem::EndRun(const FMLRunReport& Report)
 			Reward.bFallen = true;
 			Reward.NewLevel = Merc.Level;
 			Reward.ItemsLost += Merc.Equipped.Num(); // design §8.2: 장착 아이템은 파괴됨 (명예의 전당 기록에는 남음)
+
+			// design §6.2.3: 장착 무기의 방식으로, 없으면 주무기 방식으로 싸우는 망령이 됨
+			const FName* WeaponId = Merc.Equipped.Find(EMLItemSlot::Weapon);
+			const FMLItemRow* Weapon = WeaponId ? FindItem(*WeaponId) : nullptr;
+			if (LeaveGrave(Merc, Report.Zone, Weapon ? Weapon->WeaponType : Merc.WeaponType)) Reward.GraveZone = Report.Zone;
 			Reward.HallNumber = MoveMercToHall(EMLLeaveReason::Fallen);
 		}
 	}
@@ -440,6 +463,14 @@ FMLRunReward UMLGuildSubsystem::EndRun(const FMLRunReport& Report)
 		}
 	}
 	SaveData->ActiveRequest = NAME_None;
+
+	// MLVerify(M9-3): 다음 마일스톤에서 제거
+	FString GraveText;
+	for (const FMLGrave& Grave : SaveData->Graves)
+	{
+		GraveText += FString::Printf(TEXT("%d:%s zone=%d runs=%d; "), Grave.MercId, *Grave.Name, Grave.Zone, Grave.RunsLeft);
+	}
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Graves after run: extracted=%d cleared=%d [%s]"), Report.bExtracted ? 1 : 0, Report.ClearedGraveMercId, *GraveText.TrimEnd());
 
 	RefreshCandidates(); // design §8.1: 원정마다 새 후보
 	RefreshShop();       // design §8.4: 원정마다 새 상점 진열
@@ -558,8 +589,6 @@ bool UMLGuildSubsystem::EquipTitle(FName TitleId)
 
 	SaveData->Merc.Title = TitleId;
 
-	// MLVerify(M9-2): M9-3에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Title equip: %s -> %s"), *SaveData->Merc.Name, *TitleId.ToString());
 	Save();
 	return true;
 }
@@ -725,6 +754,35 @@ int32 UMLGuildSubsystem::MoveMercToHall(EMLLeaveReason Reason)
 	SaveData->bHasMerc = false;
 	SaveData->Merc = FMLMercData();
 	return SaveData->HallOfFame.Num();
+}
+
+bool UMLGuildSubsystem::LeaveGrave(const FMLMercData& Merc, int32 Zone, EMLAttackType WeaponType)
+{
+	if (Merc.Equipped.Num() == 0) return false; // 되찾을 장비가 없음
+
+	FMLGrave Grave;
+	Grave.MercId = Merc.Id;
+	Grave.Name = Merc.Name;
+	Grave.Grade = Merc.Grade;
+	Grave.WeaponType = WeaponType;
+	Merc.Equipped.GenerateValueArray(Grave.Items);
+	Grave.Zone = Zone;
+	Grave.RunsLeft = GetDefault<UMLGuildSettings>()->GraveRuns;
+	SaveData->Graves.Add(Grave);
+
+	const int32 Excess = SaveData->Graves.Num() - GetDefault<UMLGuildSettings>()->MaxGraves;
+	if (Excess > 0) SaveData->Graves.RemoveAt(0, Excess); // 가장 오래된 것부터
+
+	// MLVerify(M9-3): 다음 마일스톤에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Grave add: id=%d %s grade=%s weapon=%s zone=%d items=[%s] total=%d"), Grave.MercId, *Grave.Name,
+		*GradeName(Grave.Grade), *WeaponName(WeaponType), Zone,
+		*FString::JoinBy(Grave.Items, TEXT(","), [](const FName& Id) { return Id.ToString(); }), SaveData->Graves.Num());
+	return true;
+}
+
+const FMLGrave* UMLGuildSubsystem::FindGraveInZone(int32 Zone) const
+{
+	return SaveData ? SaveData->Graves.FindByPredicate([Zone](const FMLGrave& Grave) { return Grave.Zone == Zone; }) : nullptr;
 }
 
 void UMLGuildSubsystem::GetFamilyBonuses(FMLStatBlock& OutStatPercent, float& OutGoldPercent, float& OutXPPercent) const
@@ -902,9 +960,6 @@ bool UMLGuildSubsystem::UpgradeShop()
 
 	SaveData->Gold -= Cost;
 	++SaveData->ShopGrade;
-
-	// MLVerify(M9-2b): M9-3에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Shop upgrade: grade=%d cost=%d gold=%d"), SaveData->ShopGrade, Cost, SaveData->Gold);
 	RefreshShop();
 	Save();
 	return true;
@@ -938,14 +993,6 @@ void UMLGuildSubsystem::RefreshShop()
 	const int32 BasicCount = Grade > 1 ? 1 : 0;
 	Draw(Grade, Grade + 1, GetDefault<UMLGuildSettings>()->ShopOfferCount - BasicCount);
 	Draw(1, 1, BasicCount);
-
-	// MLVerify(M9-2b): M9-3에서 제거
-	FString OfferText;
-	for (const FName& Id : SaveData->ShopOffers)
-	{
-		OfferText += FString::Printf(TEXT("%s(T%d) "), *Id.ToString(), FindItem(Id)->Tier);
-	}
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Shop offers: grade=%d [%s]"), Grade, *OfferText.TrimEnd());
 }
 
 bool UMLGuildSubsystem::AcceptRequest(int32 OfferIndex)
@@ -1263,6 +1310,20 @@ void UMLGuildSubsystem::AddItem(FName ItemId)
 	const int32 SoldGold = AddToStash({ ItemId });
 	Save();
 	UE_LOG(LogTemp, Display, TEXT("[ML] Guild: item %s added (stash=%d autoSold=%d)"), *ItemId.ToString(), SaveData->Stash.Num(), SoldGold);
+}
+
+void UMLGuildSubsystem::AddGrave(int32 Zone, EMLAttackType WeaponType)
+{
+	if (!SaveData) return;
+
+	FMLMercData Copy = SaveData->Merc;
+	Copy.Id = SaveData->NextMercId++; // 시험용 묘비끼리 Id가 겹치지 않게
+	if (!SaveData->bHasMerc || !LeaveGrave(Copy, Zone, WeaponType))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ML] Guild: add grave refused (no merc or nothing equipped)"));
+		return;
+	}
+	Save();
 }
 
 void UMLGuildSubsystem::CreateNewSave()

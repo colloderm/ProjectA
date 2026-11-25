@@ -10,6 +10,7 @@
 class AMLHeroCharacter;
 class AMLEnemyActor;
 class AMLBossActor;
+class AMLGhostActor;
 class AMLRoomGateActor;
 class APlayerController;
 class UMLRunResultWidget;
@@ -48,7 +49,9 @@ public:
 	int32 GetElitesLeft() const { return FMath::Max(0, GetRoomEliteTotal() - RoomElitesKilled); } // 정예 방 HUD
 	// 정예 방 전용: 가장 가까운 살아 있는 엘리트 (HUD 화살표)
 	bool GetEliteLocation(FVector& OutLocation) const;
-	// 보스 방 HUD: 보스 방 밖에서는 false
+	// 묘비 방 전용: 망령이 살아 있는 동안 true (HUD 화살표)
+	bool GetGhostLocation(FVector& OutLocation) const;
+	// 보스 패널 HUD (보스 · 망령): 둘 다 없으면 false
 	bool GetBossHealth(float& OutPercent, FText& OutName) const;
 	int32 GetBossFightSeconds() const { return BossFightSeconds; }
 	bool IsBossDefeated() const { return bBossDefeated; }
@@ -66,6 +69,8 @@ protected:
 private:
 	void StartRoom(EMLRoomType NewRoomType);
 	void StartGoldRoom();
+	void StartGraveRoom();
+	void HandleGraveChosen();
 	void StartBossRoom();
 	void BossSecondTick();
 	void HandleBossKilled();
@@ -84,7 +89,7 @@ private:
 	void EndRoom();
 	void HandleGemsCollected();
 	void OpenGates();
-	void RollPortalTypes(bool bNextIsZoneStart, TArray<EMLRoomType>& OutTypes) const;
+	void RollPortalTypes(bool bNextIsZoneStart, TArray<EMLRoomType>& OutTypes);
 	void SpawnGates(const TArray<EMLRoomType>& PortalTypes, bool bWithExitDoor);
 	AMLRoomGateActor* SpawnGate(TSubclassOf<AMLRoomGateActor> GateClass, const FVector& Location, EMLRoomType GateRoomType, bool bGateIsExitDoor);
 	void GateCheckTick();
@@ -173,6 +178,24 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category = "Run|Elite", meta = (ClampMin = "0"))
 	float PursuerDelay = 10.f;
 	
+	// --- 묘비 방 (design §6.2.3) ---
+	UPROPERTY(EditDefaultsOnly, Category = "Run|Grave")
+	TSubclassOf<AMLGhostActor> GhostClass;
+
+	// 묘비가 있는 구역으로 가는 포털을 뽑을 때마다; 나타나면 그 원정에서는 다시 나오지 않음
+	UPROPERTY(EditDefaultsOnly, Category = "Run|Grave", meta = (ClampMin = "0", ClampMax = "1"))
+	float GraveChance = 0.25f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Run|Grave", meta = (ClampMin = "10"))
+	float GraveRoomSeconds = 120.f;
+
+	// 망령과 함께 살아 있는 일반 적 (목표에 포함되지 않음)
+	UPROPERTY(EditDefaultsOnly, Category = "Run|Grave", meta = (ClampMin = "0"))
+	int32 GraveRoomMaxAlive = 15;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Run|Grave")
+	float GhostSpawnDistance = 600.f;
+
 	// --- 보스 (design §6.5) ---
 	UPROPERTY(EditDefaultsOnly, Category = "Run|Boss")
 	TSubclassOf<AMLBossActor> BossClass;
@@ -250,6 +273,9 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<AMLBossActor> BossActor;
 
+	UPROPERTY(Transient)
+	TObjectPtr<AMLGhostActor> GhostActor;
+
 	FTimerHandle SpawnTimerHandle;
 	FTimerHandle GateCheckTimerHandle;
 	FTimerHandle TransitionTimerHandle;
@@ -278,6 +304,10 @@ private:
 	int32 RoomElitesKilled = 0;							// 추격자 포함 모든 엘리트
 	bool bRoomHasPursuer = false;
 	bool bPursuerPending = false;						// 아직 스폰되지 않은 추격자가 있음
+	bool bGraveOffered = false;							// 이번 원정에서 묘비 포털이 이미 나옴
+	bool bGhostDefeated = false;						// 이 방의 망령을 잡음, 장비 선택을 아직 열지 않음
+	FMLGrave RoomGrave;									// 이 방의 묘비 (저장 데이터의 복사본)
+	int32 ClearedGraveMercId = INDEX_NONE;				// 장비를 고른 묘비, 원정 종료 시 보고
 	int32 BossFightSeconds = 0;
 	bool bBossDefeated = false;
 	FVector PortalGroupCenter = FVector::ZeroVector;

@@ -87,7 +87,11 @@ public:
 	bool EquipTitle(FName TitleId);              // None = 해제. 원정 중이거나 미해금이면 거절
 	bool GetActiveTitle(FText& OutName, EMLTitleRarity& OutRarity) const; // 원정 표시용: 장착 칭호가 없으면 false
 
+	// design §6.2.3: 그 구역에서 가장 오래된 묘비, 없으면 nullptr
+	const FMLGrave* FindGraveInZone(int32 Zone) const;
+
 	// 개발 콘솔 (M8 길드 UI 전까지)
+	void AddGrave(int32 Zone, EMLAttackType WeaponType); // 현재 용병의 장비를 복사한 시험용 묘비
 	void LogStatus() const;
 	void ResetSave();
 	void AddGold(int32 Amount);
@@ -105,6 +109,7 @@ private:
 	void GetFamilyBonuses(FMLStatBlock& OutStatPercent, float& OutGoldPercent, float& OutXPPercent) const;
 	int32 AddToStash(const TArray<FName>& ItemIds); // 넘친 것은 즉시 판매; 그 골드를 반환
 	int32 ReturnEquipmentToStash();                 // 은퇴 / 판매; 자동 판매된 골드를 반환
+	bool LeaveGrave(const FMLMercData& Merc, int32 Zone, EMLAttackType WeaponType); // design §6.2.3: 장비가 없으면 남기지 않음 (false)
 	void GainMercXP(FMLMercData& Merc, int32 Amount) const;
 	FString TalentsToString(const TArray<FName>& Talents) const;
 	const FMLTitleRow* GetMercTitle(const FMLMercData& Merc) const; // 장착 + 해금된 칭호만, 아니면 nullptr

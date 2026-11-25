@@ -58,6 +58,7 @@ enum class EMLRestAction : uint8
 	Heal,    // HP 50%
 	Evolve,  // SkillClass -> 그 EvolvedClass, 같은 슬롯
 	Upgrade, // SkillClass +1 레벨
+	TakeItem, // 묘비 (design §6.2.3): ItemId를 미확보 장비로
 };
 
 // 레벨업 선택지 하나: SkillClass가 있으면 자동 기술, 아니면 PassiveRow가 있으면 패시브, 아니면 회복 대체.
@@ -69,6 +70,7 @@ struct FMLLevelUpChoice
 	EMLRestAction RestAction = EMLRestAction::None;
 	bool bEnabled = true; // 휴식터: 조건이 안 되면 회색으로 표시
 	bool bCombo = false;  // 조합 카드: SkillClass = 2단계 기술, 재료 두 개를 소모 (M9-1)
+	FName ItemId;         // TakeItem: DT_Items 행
 };
 
 // design §6.2.1 상점 행

@@ -38,6 +38,11 @@ void UMLRunResultWidget::Setup(const FMLRunSummary& Summary)
 	{
 		MercLine = FText::Format(NSLOCTEXT("ML", "ResultMercFallen", "\n{0} 전사 — 명예의 전당 #{1}"),
 			FText::FromString(Reward.MercName), FText::AsNumber(Reward.HallNumber));
+		if (Reward.GraveZone > 0) // design §6.2.3
+		{
+			MercLine = FText::Format(NSLOCTEXT("ML", "ResultGrave", "{0}\n{1}구역에 묘비가 남았습니다 (원정 {2}번 동안)"),
+				MercLine, FText::AsNumber(Reward.GraveZone), FText::AsNumber(GetDefault<UMLGuildSettings>()->GraveRuns));
+		}
 	}
 	else if (Reward.bHasMerc)
 	{

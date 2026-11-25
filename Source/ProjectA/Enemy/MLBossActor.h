@@ -6,9 +6,6 @@
 #include "Enemy/MLEnemyActor.h"
 #include "MLBossActor.generated.h"
 
-class AMLSkillVisualActor;
-class UMLEnemySubsystem;
-
 enum class EMLBossPattern : uint8
 {
 	None,
@@ -31,17 +28,11 @@ public:
 	const FText& GetBossName() const { return BossName; }
 
 protected:
-	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-
 	UPROPERTY(EditDefaultsOnly, Category = "Boss")
 	FText BossName;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Boss", meta = (ClampMin = "0.5"))
 	float PatternGap = 3.f;
-
-	// 영웅 액터 Z는 캡슐 중심; 예고 표시는 그보다 이만큼 아래, 바닥에 놓임
-	UPROPERTY(EditDefaultsOnly, Category = "Boss")
-	float TelegraphZOffset = -86.f;
 
 	// ① 돌진: 빨간 선 후 직선 돌진 (길이 = 속도 × 초)
 	UPROPERTY(EditDefaultsOnly, Category = "Boss|Charge")
@@ -111,13 +102,6 @@ private:
 	void ExecuteRoar();
 	void DoSummon();
 	void AddEnrage();
-	void ShowTelegraph(TSubclassOf<AMLSkillVisualActor> TelegraphClass, const FVector& Location, const FRotator& Rotation, const FVector& Scale);
-	void HideTelegraph();
-	UMLEnemySubsystem* GetEnemySubsystem() const;
-	bool GetHeroLocation(FVector& OutLocation) const;
-
-	UPROPERTY(Transient)
-	TObjectPtr<AMLSkillVisualActor> Telegraph;
 
 	FTimerHandle PatternTimerHandle;
 	FTimerHandle EnrageTimerHandle;

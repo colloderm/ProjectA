@@ -22,8 +22,11 @@ void UMLHallWidget::Refresh()
 		const int32 Index = Hall.Num() - 1 - n; // 최신순; 번호는 전당 순서 그대로 (#1 = 가장 먼저 떠남)
 		const FMLHallEntry& Entry = Hall[Index];
 		const FMLMercData& Merc = Entry.Merc;
+		const FMLGrave* Grave = Save->Graves.FindByPredicate([&Merc](const FMLGrave& G) { return G.MercId == Merc.Id; }); // design §6.2.3
 		const FText Reason = Entry.Reason == EMLLeaveReason::Retired ? NSLOCTEXT("ML", "HallRetired", "<Talent>은퇴</>")
 			: Entry.Reason == EMLLeaveReason::Sold ? NSLOCTEXT("ML", "HallSold", "<Gold>판매</>")
+			: Grave ? FText::Format(NSLOCTEXT("ML", "HallFallenGrave", "<Dim>전사</> · <Talent>묘비 {0}구역</> <Dim>({1}회 남음)</>"),
+				FText::AsNumber(Grave->Zone), FText::AsNumber(Grave->RunsLeft))
 			: NSLOCTEXT("ML", "HallFallen", "<Dim>전사</>");
 
 		const FText Label = FText::Format(NSLOCTEXT("ML", "HallRow",

@@ -8,6 +8,8 @@
 
 class UStaticMeshComponent;
 class AMLPickupActor;
+class AMLSkillVisualActor;
+class UMLEnemySubsystem;
 class UMaterialInterface;
 
 UCLASS()
@@ -64,7 +66,24 @@ public:
 	// 풀링된 액터는 스폰될 때마다 일반/엘리트로 전환됨.
 	void SetEliteLook(bool bElite);
 
+protected:
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	// 예고 표시 (보스·망령 공용). TelegraphClass가 없으면 표시 없이 패턴만 실행
+	void ShowTelegraph(TSubclassOf<AMLSkillVisualActor> TelegraphClass, const FVector& Location, const FRotator& Rotation, const FVector& Scale);
+	void HideTelegraph();
+	UMLEnemySubsystem* GetEnemySubsystem() const;
+	// 영웅이 없거나 죽었으면 false
+	bool GetHeroLocation(FVector& OutLocation) const;
+
+	// 영웅 액터 Z는 캡슐 중심; 예고 표시는 그보다 이만큼 아래, 바닥에 놓임
+	UPROPERTY(EditDefaultsOnly, Category = "Telegraph")
+	float TelegraphZOffset = -86.f;
+
 private:
+	UPROPERTY(Transient)
+	TObjectPtr<AMLSkillVisualActor> Telegraph;
+
 	UPROPERTY(VisibleAnywhere, Category = "Enemy")
 	TObjectPtr<USceneComponent> EnemyRoot;
 

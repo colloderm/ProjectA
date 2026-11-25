@@ -284,6 +284,21 @@ struct FMLHallEntry
 	UPROPERTY() FDateTime Date;
 };
 
+// design §6.2.3 전사자의 묘비 (M9-3). 원정이 끝날 때(EndRun)만 바뀜
+USTRUCT()
+struct FMLGrave
+{
+	GENERATED_BODY()
+
+	UPROPERTY() int32 MercId = 0;									// 전사한 용병 (명예의 전당 기록의 Id)
+	UPROPERTY() FString Name;
+	UPROPERTY() EMLGrade Grade = EMLGrade::F;
+	UPROPERTY() EMLAttackType WeaponType = EMLAttackType::Sword;	// 죽을 때의 공격 방식 (장착 무기, 없으면 주무기)
+	UPROPERTY() TArray<FName> Items;								// 장착했던 DT_Items 행 (최대 3)
+	UPROPERTY() int32 Zone = 1;										// 죽은 구역
+	UPROPERTY() int32 RunsLeft = 0;									// 남은 원정 수
+};
+
 // 원정 → 길드, 원정 종료 시 한 번 (design §11)
 struct FMLRunReport
 {
@@ -298,6 +313,7 @@ struct FMLRunReport
 	int32 GoldRoomsCleared = 0;		// design §8.5.1 의뢰
 	int32 EliteRoomsCleared = 0;
 	int32 Greed = 0;				// 원정 종료 시점의 탐욕 단계
+	int32 ClearedGraveMercId = INDEX_NONE; // design §6.2.3: 장비를 되찾은 묘비, 없으면 INDEX_NONE
 };
 
 // 길드 → 결과 화면
@@ -314,6 +330,7 @@ struct FMLRunReward
 	TArray<FText> ItemNames;	// 탈출: 창고로 보낸 아이템
 	int32 AutoSoldGold = 0;		// 창고 초과분 즉시 판매 (design §8.4)
 	int32 ItemsLost = 0;		// 사망: 원정 아이템 + 장착 아이템
+	int32 GraveZone = 0;		// 사망: 묘비가 남은 구역, 0 = 남지 않음 (design §6.2.3)
 	FText RequestName;			// 비어 있음 = 의뢰를 받지 않음 (design §8.5.1)
 	int32 RequestProgress = 0;
 	int32 RequestTarget = 0;

@@ -14,6 +14,7 @@ class UMLLevelUpWidget;
 class UMLRunHUDWidget;
 class UMLAutoSkill;
 class UMLShopWidget;
+class UMLGuildSubsystem;
 
 DECLARE_MULTICAST_DELEGATE(FMLOnRunProgressChanged);
 
@@ -51,6 +52,9 @@ public:
 	// design §6.2.1 휴식터: 회복 / 진화 / 강화를 레벨업 위젯에 표시. 선택 후 OnRestFinished 발생.
 	void OpenRestChoices();
 	bool IsRestOpen() const { return bRestMode; }
+	// design §6.2.3 묘비: 휴식터와 같은 창에서 장비 1개 선택. 선택 후 OnRestFinished 발생.
+	void OpenGraveChoices(const TArray<FName>& ItemIds);
+	bool IsGraveOpen() const { return bRestMode && Choices.Num() > 0 && Choices[0].RestAction == EMLRestAction::TakeItem; }
 	bool IsChoiceEnabled(int32 ChoiceIndex) const { return Choices.IsValidIndex(ChoiceIndex) && Choices[ChoiceIndex].bEnabled; }
 	
 	// design §6.2.1 상점. PriceMult = 구역 골드 배율. 플레이어가 나가면 OnShopFinished 발생.
@@ -101,6 +105,8 @@ private:
 	void ApplySkill(TSubclassOf<UMLAutoSkill> SkillClass);
 	UMLAutoSkill* FindOwnedSkill(TSubclassOf<UMLAutoSkill> SkillClass) const;
 	APlayerController* GetOwningPC() const;
+	const UMLGuildSubsystem* GetGuild() const;
+	void AddRunItem(FName ItemId); // 미확보 장비; DT_Items에 없는 행은 무시
 
 	UPROPERTY(EditDefaultsOnly, Category = "Run")
 	TObjectPtr<UDataTable> PassiveTable;
@@ -173,6 +179,7 @@ private:
 	int32 RunGold = 0; // design §6.2: 탈출 전까지 미확보
 	TArray<FName> RunItems;     // DT_Items 행, 미확보
 	int32 RunItemTierTotal = 0;
+	TArray<FName> PendingGraveItems; // 레벨업이 열려 있어 미룬 묘비 선택
 	int32 PendingLevelUps = 0;
 	bool bLevelUpOpen = false;
 	bool bRerollUsed = false;

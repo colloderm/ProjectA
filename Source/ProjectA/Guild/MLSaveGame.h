@@ -29,6 +29,7 @@ public:
 	UPROPERTY() FMLMercData Merc;
 	UPROPERTY() TArray<FMLMercData> Candidates;
 	UPROPERTY() TArray<FMLHallEntry> HallOfFame;
+	UPROPERTY() TArray<FMLGrave> Graves;				// design §6.2.3: 오래된 것부터, 최대 UMLGuildSettings::MaxGraves
 	UPROPERTY() bool bRunInProgress = false;			// design §6.6 비정상 종료 복구 플래그
 	UPROPERTY() int32 NextMercId = 1;
 	UPROPERTY() FMLGuildStats GuildStats;				// design §8.7: 길드 누적 기록 (칭호 해금 기준)
