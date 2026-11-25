@@ -44,6 +44,7 @@ public:
 	bool Sell();
 	bool Train(FName TrainingId);              // design §7.5
 	bool BuyShopItem(int32 OfferIndex);        // design §8.4: 창고가 가득 차면 거절 (구매품은 절대 자동 판매하지 않음)
+	bool UpgradeShop();                        // design §8.4: 골드로 상점 등급 +1, 진열을 바로 새로 뽑음
 	bool AcceptRequest(int32 OfferIndex);      // design §8.5.1: INDEX_NONE = 의뢰 없이 출정
 	// design §6.6 (c): Initialize가 비정상 종료된 원정을 되돌린 뒤 한 번만 true (허브가 안내 표시)
 	bool ConsumeRollbackNotice();
@@ -69,6 +70,7 @@ public:
 	const FMLItemRow* FindItem(FName ItemId) const;
 	int32 GetRerollCost() const;
 	int32 GetItemSellPrice(const FMLItemRow& Item) const; // design §8.4
+	int32 GetShopUpgradeCost() const;                     // design §8.4: 다음 상점 등급 비용, 최고 등급이면 0
 	const FMLTrainingRow* FindTraining(FName TrainingId) const;
 	TArray<FName> GetTrainingIds() const;
 	int32 GetTrainingCost(const FMLMercData& Merc, FName TrainingId) const; // design §7.5: Cost × CostGrowth^구매 횟수

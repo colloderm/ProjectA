@@ -264,10 +264,6 @@ void UMLGuildSubsystem::SeedGuildStats()
 	}
 	if (SaveData->bHasMerc) AddMerc(SaveData->Merc);
 	SaveData->bGuildStatsSeeded = true; // 처치·엘리트 처치는 기록이 없어 0부터
-
-	// MLVerify(M9-2): M9-3에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Guild stats seeded: extract=%d boss=%d gold=%d deaths=%d (hall=%d)"),
-		Stats.Extractions, Stats.BossKills, Stats.GoldEarned, Stats.Deaths, SaveData->HallOfFame.Num());
 }
 
 bool UMLGuildSubsystem::Contract(EMLGrade Grade, int32 Index)
@@ -886,25 +882,70 @@ bool UMLGuildSubsystem::BuyShopItem(int32 OfferIndex)
 	return true;
 }
 
-void UMLGuildSubsystem::RefreshShop()
+int32 UMLGuildSubsystem::GetShopUpgradeCost() const
 {
-	const UMLGuildSettings* Settings = GetDefault<UMLGuildSettings>();
-	TArray<FName> Pool;
-	if (ItemTable)
+	const TArray<int32>& Costs = GetDefault<UMLGuildSettings>()->ShopUpgradeCosts;
+	const int32 Index = SaveData ? SaveData->ShopGrade - 1 : INDEX_NONE;
+	return Costs.IsValidIndex(Index) ? Costs[Index] : 0;
+}
+
+bool UMLGuildSubsystem::UpgradeShop()
+{
+	if (!CanAct(TEXT("upgrade shop"))) return false;
+	const int32 Cost = GetShopUpgradeCost();
+	if (Cost <= 0 || SaveData->Gold < Cost)
 	{
-		ItemTable->ForeachRow<FMLItemRow>(TEXT("MLGuild"), [&Pool, Settings](const FName& Key, const FMLItemRow& Item)
-		{
-			if (Item.Tier <= Settings->ShopMaxTier) Pool.Add(Key);
-		});
+		UE_LOG(LogTemp, Warning, TEXT("[ML] Guild: upgrade shop refused (grade=%d gold %d < %d, cost 0 = max grade)"),
+			SaveData->ShopGrade, SaveData->Gold, Cost);
+		return false;
 	}
 
+	SaveData->Gold -= Cost;
+	++SaveData->ShopGrade;
+
+	// MLVerify(M9-2b): M9-3에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Shop upgrade: grade=%d cost=%d gold=%d"), SaveData->ShopGrade, Cost, SaveData->Gold);
+	RefreshShop();
+	Save();
+	return true;
+}
+
+void UMLGuildSubsystem::RefreshShop()
+{
 	SaveData->ShopOffers.Reset();
-	while (SaveData->ShopOffers.Num() < Settings->ShopOfferCount && Pool.Num() > 0)
+
+	// [MinTier, MaxTier] 아이템 중 아직 진열되지 않은 것을 Count개까지 추가
+	auto Draw = [this](int32 MinTier, int32 MaxTier, int32 Count)
 	{
-		const int32 Pick = FMath::RandRange(0, Pool.Num() - 1);
-		SaveData->ShopOffers.Add(Pool[Pick]);
-		Pool.RemoveAtSwap(Pick); // 서로 다른 진열
+		TArray<FName> Pool;
+		if (ItemTable)
+		{
+			ItemTable->ForeachRow<FMLItemRow>(TEXT("MLGuild"), [&](const FName& Key, const FMLItemRow& Item)
+			{
+				if (Item.Tier >= MinTier && Item.Tier <= MaxTier && !SaveData->ShopOffers.Contains(Key)) Pool.Add(Key);
+			});
+		}
+		for (; Count > 0 && Pool.Num() > 0; --Count)
+		{
+			const int32 Pick = FMath::RandRange(0, Pool.Num() - 1);
+			SaveData->ShopOffers.Add(Pool[Pick]);
+			Pool.RemoveAtSwap(Pick); // 서로 다른 진열
+		}
+	};
+
+	// design §8.4: 등급 N = N~N+1티어. 2등급부터 1칸은 항상 1티어 (전사 후 F 용병도 살 것이 남게)
+	const int32 Grade = SaveData->ShopGrade;
+	const int32 BasicCount = Grade > 1 ? 1 : 0;
+	Draw(Grade, Grade + 1, GetDefault<UMLGuildSettings>()->ShopOfferCount - BasicCount);
+	Draw(1, 1, BasicCount);
+
+	// MLVerify(M9-2b): M9-3에서 제거
+	FString OfferText;
+	for (const FName& Id : SaveData->ShopOffers)
+	{
+		OfferText += FString::Printf(TEXT("%s(T%d) "), *Id.ToString(), FindItem(Id)->Tier);
 	}
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Shop offers: grade=%d [%s]"), Grade, *OfferText.TrimEnd());
 }
 
 bool UMLGuildSubsystem::AcceptRequest(int32 OfferIndex)

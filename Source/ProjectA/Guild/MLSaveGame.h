@@ -22,6 +22,7 @@ public:
 	UPROPERTY() int32 RerollCount = 0;					// design §8.1: 원정마다 초기화
 	UPROPERTY() TArray<FName> Stash;					// design §8.4: DT_Items 행, 최대 UMLGuildSettings::StashCapacity
 	UPROPERTY() TArray<FName> ShopOffers;				// design §8.4: 길드 상점 진열 (DT_Items 행), 원정마다 갱신
+	UPROPERTY() int32 ShopGrade = 1;					// design §8.4: 상점 등급, 골드로 올림 (이전 저장은 1)
 	UPROPERTY() TArray<FName> RequestOffers;			// design §8.5.1: 의뢰판의 DT_Requests 행, 원정마다 갱신
 	UPROPERTY() FName ActiveRequest;					// 출정 시 받음; EndRun에서 판정 후 비움 (또는 비정상 종료 복구 시)
 	UPROPERTY() bool bHasMerc = false;
