@@ -3,6 +3,7 @@
 #include "MLSkillVisualActor.h"
 
 #include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInterface.h"
 
 AMLSkillVisualActor::AMLSkillVisualActor()
 {
@@ -16,4 +17,9 @@ AMLSkillVisualActor::AMLSkillVisualActor()
 	VisualMesh->SetCollisionProfileName(TEXT("NoCollision"));
 	VisualMesh->SetGenerateOverlapEvents(false);
 	VisualMesh->SetCanEverAffectNavigation(false);
+}
+
+void AMLSkillVisualActor::SetOverlay(UMaterialInterface* Overlay)
+{
+	ForEachComponent<UMeshComponent>(false, [Overlay](UMeshComponent* Mesh) { Mesh->SetOverlayMaterial(Overlay); });
 }

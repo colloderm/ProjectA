@@ -11,6 +11,10 @@
 class UAbilitySystemComponent;
 class UMLEnemySubsystem;
 class UTexture2D;
+class UMaterialInterface;
+class AMLSkillVisualActor;
+class AMLHeroCharacter;
+struct FMLProjectileLaunch;
 
 UCLASS(Abstract, Blueprintable)
 class PROJECTA_API UMLAutoSkill : public UObject
@@ -19,6 +23,9 @@ class PROJECTA_API UMLAutoSkill : public UObject
 
 public:
 	void Acquire(AActor* InHero);
+	// design §6.2.3 강적: 망령(InOwner)이 이 기술을 영웅에게 씀 (Lv1 고정). 대상 헬퍼가 영웅 하나를 가리킴
+	void AcquireHostile(AActor* InOwner, TSubclassOf<AMLSkillVisualActor> InTelegraphClass, UMaterialInterface* InOverlay, float InTelegraphZOffset);
+	bool IsHostile() const { return bHostile; }
 	void LevelUp();
 	
 	// 오브젝트를 버리기 전에 타이머를 멈추고 시각 효과를 제거 (진화, M6-3b의 상점 제거).
@@ -52,6 +59,24 @@ protected:
 	
 	// 피해 리포트 키: 진화 기술은 별도 클래스라서 별도 줄로 표시 (design §6 HUD, M9-0)
 	FName GetDamageSource() const { return GetClass()->GetFName(); }
+
+	// --- 대상 헬퍼: 영웅의 기술 = 적 서브시스템 그대로, 망령의 기술 = 영웅 하나 (HeroTarget) ---
+	static constexpr int32 HeroTarget = -2;
+	bool HasTargets() const;
+	int32 FindTarget(const FVector& Origin, float Range) const;
+	FVector GetTargetLocation(int32 Target) const;
+	int32 DamageArea(const FVector& Center, float Radius, float Damage); // 맞힌 수
+	bool LaunchShot(FMLProjectileLaunch Shot) const;                     // 망령이면 적대 탄 + 유도 1/4
+	AMLSkillVisualActor* SpawnVisual(TSubclassOf<AMLSkillVisualActor> VisualClass, const FVector& Location) const; // 망령이면 오버레이
+
+	// 망령 전용 (design §6.2.3): Center에 예고 원을 HostileStrikeDelay초 보여 준 뒤 Radius 안이면 피해 (+ 둔화)
+	void HostileStrike(const FVector& Center, float Radius, float Damage, float SlowMultiplier = 1.f, float SlowSeconds = 0.f);
+	AMLHeroCharacter* GetTargetHero() const; // 살아 있는 영웅, 없으면 nullptr
+
+	static constexpr float HostileStrikeDelay = 0.6f;
+	static constexpr float HostileStrikeRadius = 150.f; // 번개 사슬처럼 원래 범위가 없는 즉시 명중
+	static constexpr float HostileCooldownMult = 1.5f;
+	static constexpr float HostileTurnRateMult = 0.25f;
 
 	// PerLevel[Level-1], 마지막 항목으로 제한
 	template <typename T>
@@ -98,6 +123,15 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<AActor> HeroActor;
+
+	UPROPERTY(Transient)
+	TSubclassOf<AMLSkillVisualActor> HostileTelegraphClass;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInterface> HostileOverlay;
+
+	float HostileTelegraphZOffset = 0.f;
+	bool bHostile = false;
 
 	FTimerHandle FireTimerHandle;
 	int32 SkillLevel = 0;

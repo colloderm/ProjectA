@@ -10,6 +10,7 @@ class AMLEnemyActor;
 class AMLHeroCharacter;
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FMLOnEnemyKilled, const AMLEnemyActor* /*Killed*/, bool /*bElite*/);
+DECLARE_MULTICAST_DELEGATE_OneParam(FMLOnEnemyShieldBroken, int32 /*EnemyIndex*/);
 
 // design §6.5 엘리트 특성. None = 일반 적.
 enum class EMLEliteTrait : uint8
@@ -104,7 +105,15 @@ public:
 	// 접촉·보스·망령이 영웅에게 주는 모든 피해에 곱함 (방이 시작될 때 설정)
 	void SetHeroDamageMult(float Mult) { HeroDamageMult = Mult; }
 
+	// design §6.2.3 망령의 기술 피해: ×HostileSkillDamageMult, 모든 기술을 합쳐 HostileSkillInterval에 1번
+	void DamageHeroBySkill(float Damage);
+	// 망령: 패시브(최대 체력) 반영과 수호 방패
+	float GetEnemyMaxHealth(int32 Index) const { return IsEnemyActive(Index) ? Enemies[Index].MaxHealth : 0.f; }
+	void SetEnemyMaxHealth(int32 Index, float MaxHealth); // 체력도 가득 채움
+	void SetEnemyShield(int32 Index, float Shield);
+
 	FMLOnEnemyKilled OnEnemyKilled;
+	FMLOnEnemyShieldBroken OnEnemyShieldBroken; // 피해 처리 도중에 불림: 듣는 쪽은 다음 틱으로 미룰 것
 
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
@@ -123,6 +132,11 @@ private:
 	int32 ActiveCount = 0;
 	float HeroDamageMult = 1.f;
 	float HeroContactCooldown = 0.f; // 주기마다 접촉 타격 1회, 모든 적이 공유
+	float HeroSkillCooldown = 0.f;   // 망령의 기술 타격, 접촉과 따로
+
+	// 2026-11-26 검증: ×0.5 · 0.5초면 칼날 폭풍이 F등급을 40초 안에 쓰러뜨려서 낮춤
+	static constexpr float HostileSkillDamageMult = 0.35f;
+	static constexpr float HostileSkillInterval = 0.75f;
 
 	static constexpr int32 MaxEnemies = 200;
 	static constexpr float ContactRadius = 80.f;

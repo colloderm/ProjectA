@@ -7,6 +7,7 @@
 #include "MLProjectileSubsystem.generated.h"
 
 class AMLProjectileActor;
+class UMaterialInterface;
 
 // 탄 하나에 필요한 모든 값. 기본값 = 일반 직선 탄 (활).
 struct FMLProjectileLaunch
@@ -21,6 +22,8 @@ struct FMLProjectileLaunch
 	float SlowDuration = 0.f;
 	float HomingTurnRate = 0.f; // 초당 각도, 0 = 직선
 	FName Source;               // 피해 리포트 키 (design §6 HUD, M9-0)
+	bool bHostile = false;      // design §6.2.3 망령의 탄: 영웅만 맞힘
+	UMaterialInterface* Overlay = nullptr; // 망령의 탄 표시, 없으면 원래 모습 (풀에서 다시 쓸 때 초기화)
 };
 
 USTRUCT()
@@ -39,6 +42,7 @@ struct FMLProjectileEntry
 	float SlowDuration = 0.f;
 	float HomingTurnRate = 0.f;
 	FName Source;
+	bool bHostile = false;
 	bool bActive = false;
 };
 
@@ -67,4 +71,5 @@ private:
 
 	static constexpr int32 MaxProjectiles = 300;
 	static constexpr float HomingSeekRange = 800.f;
+	static constexpr float HeroHitRadius = 40.f; // 영웅 캡슐 반경, 적대 탄의 명중 거리에 더함
 };

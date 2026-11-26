@@ -96,6 +96,7 @@ void UMLEnemySubsystem::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	HeroContactCooldown = FMath::Max(0.f, HeroContactCooldown - DeltaTime);
+	HeroSkillCooldown = FMath::Max(0.f, HeroSkillCooldown - DeltaTime);
 	if (ActiveCount == 0) return;
 
 	AMLHeroCharacter* Hero = CachedHero.Get();
@@ -253,11 +254,12 @@ void UMLEnemySubsystem::DamageEnemy(int32 Index, float Damage, FName Source)
 	// design §6 피해 리포트: 적이 아직 받을 수 있는 만큼만 집계 (쉴드 엘리트의 쉴드 포함)
 	RoomDamage.FindOrAdd(Source) += FMath::Min(Damage, Entry.ShieldLeft + FMath::Max(0.f, Entry.Health));
 
-	if (Entry.ShieldLeft > 0.f) // 쉴드 엘리트: 체력보다 먼저 흡수
+	if (Entry.ShieldLeft > 0.f) // 쉴드 엘리트 / 망령의 수호 방패: 체력보다 먼저 흡수
 	{
 		const float Absorbed = FMath::Min(Entry.ShieldLeft, Damage);
 		Entry.ShieldLeft -= Absorbed;
 		Damage -= Absorbed;
+		if (Entry.ShieldLeft <= 0.f) OnEnemyShieldBroken.Broadcast(Index);
 	}
 
 	Entry.Health -= Damage;
@@ -438,6 +440,33 @@ void UMLEnemySubsystem::LaunchEnemy(int32 Index, const FVector& Velocity, float 
 void UMLEnemySubsystem::SetEnemyMoveSpeed(int32 Index, float Speed)
 {
 	if (IsEnemyActive(Index)) Enemies[Index].MoveSpeed = Speed;
+}
+
+void UMLEnemySubsystem::DamageHeroBySkill(float Damage)
+{
+	if (HeroSkillCooldown > 0.f) return;
+
+	AMLHeroCharacter* Hero = Cast<AMLHeroCharacter>(UGameplayStatics::GetPlayerPawn(this, 0));
+	if (!Hero || Hero->IsDead()) return;
+
+	ApplyContactDamage(Hero, Damage * HostileSkillDamageMult);
+	HeroSkillCooldown = HostileSkillInterval;
+
+	// MLVerify(M9-3c): 다음 마일스톤에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Ghost skill hit: raw=%.1f final=%.1f (x%.2f x zone %.2f, before DEF)"),
+		Damage, Damage * HostileSkillDamageMult * HeroDamageMult, HostileSkillDamageMult, HeroDamageMult);
+}
+
+void UMLEnemySubsystem::SetEnemyMaxHealth(int32 Index, float MaxHealth)
+{
+	if (!IsEnemyActive(Index)) return;
+	Enemies[Index].MaxHealth = FMath::Max(1.f, MaxHealth);
+	Enemies[Index].Health = Enemies[Index].MaxHealth;
+}
+
+void UMLEnemySubsystem::SetEnemyShield(int32 Index, float Shield)
+{
+	if (IsEnemyActive(Index)) Enemies[Index].ShieldLeft = FMath::Max(0.f, Shield);
 }
 
 void UMLEnemySubsystem::DamageHero(float Damage)
