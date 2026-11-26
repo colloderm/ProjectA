@@ -20,8 +20,8 @@ class PROJECTA_API AMLGhostActor : public AMLEnemyActor
 public:
 	AMLGhostActor();
 
-	// InDamageScale: 옛 용병 등급 보정
-	void StartGhost(int32 InEnemyIndex, EMLAttackType InWeaponType, float InDamageScale);
+	// 피해의 구역·등급 배율은 적 서브시스템이 한 번에 적용 (SetHeroDamageMult)
+	void StartGhost(int32 InEnemyIndex, EMLAttackType InWeaponType);
 	void StopGhost();
 	int32 GetEnemyIndex() const { return EnemyIndex; }
 
@@ -84,7 +84,6 @@ private:
 
 	FTimerHandle AttackTimerHandle;
 	EMLAttackType WeaponType = EMLAttackType::Sword;
-	float DamageScale = 1.f;
 	FVector AttackOrigin = FVector::ZeroVector; // 검·지팡이 = 원의 중심, 활 = 쏘는 자리
 	FVector AttackDir = FVector::ForwardVector; // 활
 	int32 EnemyIndex = INDEX_NONE;

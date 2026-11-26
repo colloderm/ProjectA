@@ -187,7 +187,7 @@ void UMLEnemySubsystem::ApplyContactDamage(AMLHeroCharacter* Hero, float Damage)
 	const FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(UMLGE_Damage::StaticClass(), 1.f, ASC->MakeEffectContext());
 	if (!SpecHandle.IsValid()) return;
 
-	SpecHandle.Data->SetSetByCallerMagnitude(UMLGE_Damage::DamageName, Damage);
+	SpecHandle.Data->SetSetByCallerMagnitude(UMLGE_Damage::DamageName, Damage * HeroDamageMult);
 	ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 }
 

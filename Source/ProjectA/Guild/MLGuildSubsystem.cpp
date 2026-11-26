@@ -195,7 +195,7 @@ namespace
 			if (UMLGuildSubsystem* Guild = GetGuild(World); Guild && Args.Num() > 0) Guild->AddItem(FName(*Args[0]));
 		}));
 
-	FAutoConsoleCommandWithWorldAndArgs GuildAddGraveCmd(TEXT("ML.Guild.AddGrave"), TEXT("ML.Guild.AddGrave <Zone> <sword|bow|staff> (copies the current merc's equipment)"),
+	FAutoConsoleCommandWithWorldAndArgs GuildAddGraveCmd(TEXT("ML.Guild.AddGrave"), TEXT("ML.Guild.AddGrave <Zone> <sword|bow|staff> [Skill ...] (copies the current merc's equipment; Skill = BP_Skill_<name>, e.g. Blades)"),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			UMLGuildSubsystem* Guild = GetGuild(World);
@@ -205,7 +205,14 @@ namespace
 				UE_LOG(LogTemp, Warning, TEXT("[ML] Guild: usage ML.Guild.AddGrave <Zone> <sword|bow|staff>"));
 				return;
 			}
-			Guild->AddGrave(FMath::Max(1, FCString::Atoi(*Args[0])), static_cast<EMLAttackType>(Type));
+			TArray<FSoftClassPath> Skills;
+			for (int32 i = 2; i < Args.Num(); ++i)
+			{
+				const FSoftClassPath Path(FString::Printf(TEXT("/Game/Blueprints/Skills/BP_Skill_%s.BP_Skill_%s_C"), *Args[i], *Args[i]));
+				if (Path.TryLoadClass<UObject>()) Skills.Add(Path);
+				else UE_LOG(LogTemp, Warning, TEXT("[ML] Guild: add grave skips unknown skill %s"), *Args[i]);
+			}
+			Guild->AddGrave(FMath::Max(1, FCString::Atoi(*Args[0])), static_cast<EMLAttackType>(Type), Skills);
 		}));
 }
 
@@ -437,7 +444,7 @@ FMLRunReward UMLGuildSubsystem::EndRun(const FMLRunReport& Report)
 			// design §6.2.3: 장착 무기의 방식으로, 없으면 주무기 방식으로 싸우는 망령이 됨
 			const FName* WeaponId = Merc.Equipped.Find(EMLItemSlot::Weapon);
 			const FMLItemRow* Weapon = WeaponId ? FindItem(*WeaponId) : nullptr;
-			if (LeaveGrave(Merc, Report.Zone, Weapon ? Weapon->WeaponType : Merc.WeaponType)) Reward.GraveZone = Report.Zone;
+			if (LeaveGrave(Merc, Report.Zone, Weapon ? Weapon->WeaponType : Merc.WeaponType, Report.Skills, Report.Passives)) Reward.GraveZone = Report.Zone;
 			Reward.HallNumber = MoveMercToHall(EMLLeaveReason::Fallen);
 		}
 	}
@@ -757,7 +764,7 @@ int32 UMLGuildSubsystem::MoveMercToHall(EMLLeaveReason Reason)
 	return SaveData->HallOfFame.Num();
 }
 
-bool UMLGuildSubsystem::LeaveGrave(const FMLMercData& Merc, int32 Zone, EMLAttackType WeaponType)
+bool UMLGuildSubsystem::LeaveGrave(const FMLMercData& Merc, int32 Zone, EMLAttackType WeaponType, const TArray<FSoftClassPath>& Skills, const TArray<FName>& Passives)
 {
 	if (Merc.Equipped.Num() == 0) return false; // 되찾을 장비가 없음
 
@@ -769,6 +776,8 @@ bool UMLGuildSubsystem::LeaveGrave(const FMLMercData& Merc, int32 Zone, EMLAttac
 	Merc.Equipped.GenerateValueArray(Grave.Items);
 	Grave.Zone = Zone;
 	Grave.RunsLeft = GetDefault<UMLGuildSettings>()->GraveRuns;
+	Grave.Skills = Skills;
+	Grave.Passives = Passives;
 	SaveData->Graves.Add(Grave);
 
 	const int32 Excess = SaveData->Graves.Num() - GetDefault<UMLGuildSettings>()->MaxGraves;
@@ -778,6 +787,10 @@ bool UMLGuildSubsystem::LeaveGrave(const FMLMercData& Merc, int32 Zone, EMLAttac
 	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Grave add: id=%d %s grade=%s weapon=%s zone=%d items=[%s] total=%d"), Grave.MercId, *Grave.Name,
 		*GradeName(Grave.Grade), *WeaponName(WeaponType), Zone,
 		*FString::JoinBy(Grave.Items, TEXT(","), [](const FName& Id) { return Id.ToString(); }), SaveData->Graves.Num());
+	// MLVerify(M9-3c): 다음 마일스톤에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Grave skills: [%s] passives: [%s]"),
+		*FString::JoinBy(Grave.Skills, TEXT(","), [](const FSoftClassPath& Path) { return Path.GetAssetName(); }),
+		*FString::JoinBy(Grave.Passives, TEXT(","), [](const FName& Id) { return Id.ToString(); }));
 	return true;
 }
 
@@ -1313,13 +1326,13 @@ void UMLGuildSubsystem::AddItem(FName ItemId)
 	UE_LOG(LogTemp, Display, TEXT("[ML] Guild: item %s added (stash=%d autoSold=%d)"), *ItemId.ToString(), SaveData->Stash.Num(), SoldGold);
 }
 
-void UMLGuildSubsystem::AddGrave(int32 Zone, EMLAttackType WeaponType)
+void UMLGuildSubsystem::AddGrave(int32 Zone, EMLAttackType WeaponType, const TArray<FSoftClassPath>& Skills)
 {
 	if (!SaveData) return;
 
 	FMLMercData Copy = SaveData->Merc;
 	Copy.Id = SaveData->NextMercId++; // 시험용 묘비끼리 Id가 겹치지 않게
-	if (!SaveData->bHasMerc || !LeaveGrave(Copy, Zone, WeaponType))
+	if (!SaveData->bHasMerc || !LeaveGrave(Copy, Zone, WeaponType, Skills, TArray<FName>()))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[ML] Guild: add grave refused (no merc or nothing equipped)"));
 		if (GEngine) GEngine->AddOnScreenDebugMessage(INDEX_NONE, 5.f, FColor::Red, TEXT("AddGrave 거절: 용병이 없거나 장비를 끼지 않음"));
