@@ -101,6 +101,8 @@ public:
 	void LaunchEnemy(int32 Index, const FVector& Velocity, float Duration);
 	void SetEnemyMoveSpeed(int32 Index, float Speed);
 	void DamageHero(float Damage);
+	// 접촉·보스·망령이 영웅에게 주는 모든 피해에 곱함 (방이 시작될 때 설정)
+	void SetHeroDamageMult(float Mult) { HeroDamageMult = Mult; }
 
 	FMLOnEnemyKilled OnEnemyKilled;
 
@@ -119,6 +121,7 @@ private:
 	TMap<FName, float> RoomDamage;
 	TMap<FName, FText> DamageSourceNames;
 	int32 ActiveCount = 0;
+	float HeroDamageMult = 1.f;
 	float HeroContactCooldown = 0.f; // 주기마다 접촉 타격 1회, 모든 적이 공유
 
 	static constexpr int32 MaxEnemies = 200;

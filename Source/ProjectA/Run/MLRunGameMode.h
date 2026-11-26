@@ -306,7 +306,7 @@ private:
 	int32 EliteKillCount = 0;							// design §7.1.1 용병 경험치
 	int32 GoldRoomsCleared = 0;							// design §8.5.1 의뢰: 처치한 황금 슬라임
 	int32 EliteRoomsCleared = 0;						// 승리한 정예 방 (시간 초과는 제외)
-	float EnemyHealthScale = 1.f;						// design §6.5 용병 등급 보정 (지금은 HP만)
+	float EnemyHealthScale = 1.f;						// design §6.5 용병 등급 보정 (적 HP와 영웅이 받는 피해)
 	int32 RoomKills = 0;
 	int32 RoomSpawned = 0;
 	int32 RoomQuota = 0;

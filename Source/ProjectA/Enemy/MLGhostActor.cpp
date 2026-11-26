@@ -34,11 +34,10 @@ void AMLGhostActor::SetMoving(bool bMoving)
 	}
 }
 
-void AMLGhostActor::StartGhost(int32 InEnemyIndex, EMLAttackType InWeaponType, float InDamageScale)
+void AMLGhostActor::StartGhost(int32 InEnemyIndex, EMLAttackType InWeaponType)
 {
 	EnemyIndex = InEnemyIndex;
 	WeaponType = InWeaponType;
-	DamageScale = InDamageScale;
 	BodyMesh->SetOverlayMaterial(EliteOverlayMaterial); // 액터 크기는 그대로: 키우면 발이 바닥에 묻힘 (크기는 BP의 BodyMesh에서)
 	SetMoving(true);
 	GetWorldTimerManager().SetTimer(AttackTimerHandle, this, &AMLGhostActor::BeginAttack, AttackGap, false);
@@ -99,12 +98,12 @@ void AMLGhostActor::ExecuteAttack()
 	if (!GetHeroLocation(HeroLoc)) return;
 
 	const bool bHit = IsHit(HeroLoc);
-	if (bHit) EnemySub->DamageHero(AttackDamage * DamageScale);
+	if (bHit) EnemySub->DamageHero(AttackDamage);
 
 	// MLVerify(M9-3): 다음 마일스톤에서 제거
 	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Ghost attack: weapon=%s hit=%d dist=%.0f damage=%.1f"),
 		*StaticEnum<EMLAttackType>()->GetNameStringByValue(static_cast<int64>(WeaponType)), bHit ? 1 : 0,
-		FVector::Dist2D(HeroLoc, AttackOrigin), AttackDamage * DamageScale);
+		FVector::Dist2D(HeroLoc, AttackOrigin), AttackDamage);
 
 	GetWorldTimerManager().SetTimer(AttackTimerHandle, this, &AMLGhostActor::BeginAttack, AttackGap, false);
 }

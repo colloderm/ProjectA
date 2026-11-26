@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
 #include "Combat/MLWeaponTypes.h"
+#include "UObject/SoftObjectPath.h"
 #include "MLGuildTypes.generated.h"
 
 // design §7.1 용병 등급 (DT_Grades 행 이름 = 이 문자)
@@ -297,6 +298,8 @@ struct FMLGrave
 	UPROPERTY() TArray<FName> Items;								// 장착했던 DT_Items 행 (최대 3)
 	UPROPERTY() int32 Zone = 1;										// 죽은 구역
 	UPROPERTY() int32 RunsLeft = 0;									// 남은 원정 수
+	UPROPERTY() TArray<FSoftClassPath> Skills;						// 죽을 때의 기술 클래스 (M9-3c 이전 묘비는 비어 있음)
+	UPROPERTY() TArray<FName> Passives;								// 죽을 때의 DT_Passives 행
 };
 
 // 원정 → 길드, 원정 종료 시 한 번 (design §11)
@@ -314,6 +317,8 @@ struct FMLRunReport
 	int32 EliteRoomsCleared = 0;
 	int32 Greed = 0;				// 원정 종료 시점의 탐욕 단계
 	int32 ClearedGraveMercId = INDEX_NONE; // design §6.2.3: 장비를 되찾은 묘비, 없으면 INDEX_NONE
+	TArray<FSoftClassPath> Skills;	// design §6.2.3: 전사하면 묘비에 남는 기술 / 패시브
+	TArray<FName> Passives;
 };
 
 // 길드 → 결과 화면

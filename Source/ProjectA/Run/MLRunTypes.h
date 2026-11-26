@@ -49,7 +49,11 @@ struct FMLZoneSpawnConfig
 
 	UPROPERTY(EditAnywhere, Category = "Spawn", meta = (ClampMin = "0.1"))
 	float HealthMult = 1.f;
-	
+
+	// 이 구역의 적이 영웅에게 주는 모든 피해 배율 (1.0 / 1.5 / 2.2), 용병 등급 보정과 곱함
+	UPROPERTY(EditAnywhere, Category = "Spawn", meta = (ClampMin = "0.1"))
+	float DamageMult = 1.f;
+
 	// design §6.2: 이만큼 스폰됐고 살아 있는 적이 없으면 방 종료
 	UPROPERTY(EditAnywhere, Category = "Spawn", meta = (ClampMin = "1"))
 	int32 EnemiesPerRoom = 80;

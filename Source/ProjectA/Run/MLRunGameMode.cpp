@@ -11,11 +11,13 @@
 #include "Enemy/MLEnemySubsystem.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerStart.h"
+#include "HAL/IConsoleManager.h"
 #include "Hero/MLHeroCharacter.h"
 #include "Kismet/GameplayStatics.h"
 #include "Pickup/MLPickupSubsystem.h"
 #include "Run/MLRoomGateActor.h"
 #include "Run/MLRunProgressComponent.h"
+#include "Skills/MLAutoSkill.h"
 #include "TimerManager.h"
 #include "UI/MLRunResultWidget.h"
 #include "Engine/GameInstance.h"
@@ -29,6 +31,14 @@ namespace
 	{
 		return static_cast<EMLEliteTrait>(FMath::RandRange(1, static_cast<int32>(EMLEliteTrait::Count) - 1));
 	}
+
+	// 시험용: 정상 전사 흐름(결과 화면, 묘비, 명예의 전당)을 바로 시작
+	FAutoConsoleCommandWithWorld RunDieCmd(TEXT("ML.Run.Die"), TEXT("Kill the hero through the normal death flow"),
+		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+		{
+			AMLHeroCharacter* Hero = Cast<AMLHeroCharacter>(UGameplayStatics::GetPlayerPawn(World, 0));
+			if (Hero && World->GetAuthGameMode<AMLRunGameMode>()) Hero->HandleDeath();
+		}));
 }
 
 AMLRunGameMode::AMLRunGameMode()
@@ -49,6 +59,10 @@ AMLRunGameMode::AMLRunGameMode()
 	ZoneSpawns[0].GoldMult = 1.0f;
 	ZoneSpawns[1].GoldMult = 1.6f;
 	ZoneSpawns[2].GoldMult = 2.5f;
+
+	ZoneSpawns[0].DamageMult = 1.0f;
+	ZoneSpawns[1].DamageMult = 1.5f;
+	ZoneSpawns[2].DamageMult = 2.2f;
 	
 	ZoneSpawns[0].ElitesPerRoom = 0; ZoneSpawns[0].EliteRoomElites = 3; // design §6.2 / §6.2.1
 	ZoneSpawns[1].ElitesPerRoom = 1; ZoneSpawns[1].EliteRoomElites = 4;
@@ -142,8 +156,17 @@ void AMLRunGameMode::StartRoom(EMLRoomType NewRoomType)
 	LastRoomDamage.Reset();
 	bRoomDamageOpen = NewRoomType != EMLRoomType::Rest && NewRoomType != EMLRoomType::Shop;
 	RoomCombatStartSeconds = GetWorld()->GetTimeSeconds();
-	if (UMLEnemySubsystem* EnemySub = GetWorld()->GetSubsystem<UMLEnemySubsystem>()) EnemySub->TakeRoomDamage();
-	
+	if (UMLEnemySubsystem* EnemySub = GetWorld()->GetSubsystem<UMLEnemySubsystem>())
+	{
+		EnemySub->TakeRoomDamage();
+		const float ZoneDamage = GetZoneSpawn().DamageMult;
+		EnemySub->SetHeroDamageMult(ZoneDamage * EnemyHealthScale); // design §6.5: 구역 × 용병 등급 보정, 보스 방은 마지막 구역 값
+
+		// MLVerify(M9-3c): 다음 마일스톤에서 제거
+		UE_LOG(LogTemp, Display, TEXT("[MLVerify] Room start: zone=%d room=%d type=%d damageMult=%.2f (zone %.2f x grade %.2f)"),
+			CurrentZone, CurrentRoom, static_cast<int32>(NewRoomType), ZoneDamage * EnemyHealthScale, ZoneDamage, EnemyHealthScale);
+	}
+
 	if (NewRoomType == EMLRoomType::Boss)
 	{
 		StartBossRoom();
@@ -232,7 +255,7 @@ void AMLRunGameMode::SpawnGhost()
 
 	bGhostPending = false;
 	GhostActor = Cast<AMLGhostActor>(EnemySub->GetEnemyActor(GhostIndex));
-	if (GhostActor) GhostActor->StartGhost(GhostIndex, RoomGrave.WeaponType, GradeScale);
+	if (GhostActor) GhostActor->StartGhost(GhostIndex, RoomGrave.WeaponType);
 	GhostSecondsLeft = FMath::CeilToInt(GhostSeconds);
 	GetWorldTimerManager().SetTimer(GhostTimerHandle, this, &AMLRunGameMode::GhostSecondTick, 1.f, true);
 	OnRoomStateChanged.Broadcast(); // HUD: 안내 → 보스 패널
@@ -743,6 +766,14 @@ void AMLRunGameMode::FinishRun(bool bExtracted)
 		Report.EliteRoomsCleared = EliteRoomsCleared;
 		Report.Greed = GetGreedLevel();
 		Report.ClearedGraveMercId = ClearedGraveMercId;
+		if (RunProgress)
+		{
+			for (const TObjectPtr<UMLAutoSkill>& Skill : RunProgress->GetOwnedSkills())
+			{
+				if (Skill) Report.Skills.Add(FSoftClassPath(Skill->GetClass()));
+			}
+			RunProgress->GetPassiveLevels().GetKeys(Report.Passives);
+		}
 		Summary.Reward = Guild->EndRun(Report);
 		if (bExtracted) Summary.Gold = Summary.Reward.GoldAdded; // 결과 화면은 실제로 길드에 들어간 값을 보여줌 (가문 보너스)
 	}
@@ -899,7 +930,7 @@ void AMLRunGameMode::MakeDamageLines(const TMap<FName, float>& Damage, TArray<FM
 FMLZoneSpawnConfig AMLRunGameMode::GetZoneSpawn() const
 {
 	FMLZoneSpawnConfig Config = ZoneSpawns.IsValidIndex(CurrentZone - 1) ? ZoneSpawns[CurrentZone - 1] : FMLZoneSpawnConfig();
-	Config.HealthMult *= EnemyHealthScale; // design §6.5 (접촉 피해 보정은 M9 밸런스에서)
+	Config.HealthMult *= EnemyHealthScale; // design §6.5 (피해는 StartRoom에서 따로 곱함)
 	return Config;
 }
 
