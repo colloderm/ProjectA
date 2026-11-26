@@ -82,7 +82,7 @@ bool UMLEnemySubsystem::SpawnEnemy(TSubclassOf<AMLEnemyActor> EnemyClass, const 
 	Slot->GoldMult = GoldMult;
 	Slot->bFlees = Defaults->bFleesFromHero;
 	Slot->bActive = true;
-	Slot->Actor->SetActorLocation(Location);
+	Slot->Actor->SetActorLocation(FlowField.FindOpenLocation(GetWorld(), Location)); // design §6.5: 장애물 안에는 스폰하지 않음
 	Slot->Actor->SetEliteLook(bElite);
 	Slot->Actor->SetActorHiddenInGame(false);
 	++ActiveCount;
@@ -109,6 +109,8 @@ void UMLEnemySubsystem::Tick(float DeltaTime)
 
 	const FVector HeroLoc = Hero->GetActorLocation();
 	const float SeparationRadiusSq = FMath::Square(SeparationRadius);
+	UWorld* World = GetWorld();
+	FlowField.Update(World, HeroLoc, DeltaTime);
 	float StrongestContact = 0.f;
 
 	for (int32 i = 0; i < Enemies.Num(); ++i)
@@ -129,8 +131,10 @@ void UMLEnemySubsystem::Tick(float DeltaTime)
 		if (Entry.ForcedTimeLeft > 0.f) // 보스 돌진
 		{
 			Entry.ForcedTimeLeft -= DeltaTime;
-			Loc += Entry.ForcedVelocity * DeltaTime;
-			Loc.Z = HeroLoc.Z;
+			FVector Next = Loc + Entry.ForcedVelocity * DeltaTime;
+			Next.Z = HeroLoc.Z;
+			if (FlowField.IsBlocked(World, Next)) Entry.ForcedTimeLeft = 0.f; // 벽에서 돌진을 멈춤
+			else Loc = Next;
 			Entry.Actor->SetActorLocationAndRotation(Loc, Entry.ForcedVelocity.Rotation());
 		}
 		else if (!Entry.bRooted) // 고정됨 (보스 예고): 제자리에서 방향만 유지
@@ -158,10 +162,12 @@ void UMLEnemySubsystem::Tick(float DeltaTime)
 				Entry.SlowTimeLeft -= DeltaTime;
 				SpeedMul = Entry.SlowFactor;
 			}
-			const FVector MoveDir = Entry.bFlees ? -ToHero.GetSafeNormal() : ToHero.GetSafeNormal();
+			// design §6.5: 쫓는 적은 흐름장으로 장애물을 돌아옴 (장애물이 없으면 직선), 도망치는 적은 반대 방향
+			const FVector MoveDir = Entry.bFlees ? -ToHero.GetSafeNormal() : FlowField.GetMoveDir(Loc, HeroLoc);
 			const FVector Velocity = MoveDir * Entry.MoveSpeed * SpeedMul + Push * SeparationStrength;
-			Loc += Velocity * DeltaTime;
-			Loc.Z = HeroLoc.Z; // shortcut: 평평한 맵 전용; 경기장에 높낮이가 생기면 지면 트레이스 추가
+			FVector Next = Loc + Velocity * DeltaTime;
+			Next.Z = HeroLoc.Z; // shortcut: 평평한 맵 전용; 경기장에 높낮이가 생기면 지면 트레이스 추가
+			Loc = FlowField.Slide(World, Loc, Next); // 밀어내기로도 벽 안에 들어가지 않음
 
 			Entry.Actor->SetActorLocationAndRotation(Loc, MoveDir.Rotation());
 		}
@@ -451,10 +457,6 @@ void UMLEnemySubsystem::DamageHeroBySkill(float Damage)
 
 	ApplyContactDamage(Hero, Damage * HostileSkillDamageMult);
 	HeroSkillCooldown = HostileSkillInterval;
-
-	// MLVerify(M9-3c): 다음 마일스톤에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Ghost skill hit: raw=%.1f final=%.1f (x%.2f x zone %.2f, before DEF)"),
-		Damage, Damage * HostileSkillDamageMult * HeroDamageMult, HostileSkillDamageMult, HeroDamageMult);
 }
 
 void UMLEnemySubsystem::SetEnemyMaxHealth(int32 Index, float MaxHealth)

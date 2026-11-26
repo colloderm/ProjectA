@@ -80,13 +80,6 @@ void AMLGhostActor::StartGhost(int32 InEnemyIndex, EMLAttackType InWeaponType, c
 		Skill->AcquireHostile(this, CircleTelegraphClass, SkillOverlayMaterial, TelegraphZOffset);
 	}
 
-	// MLVerify(M9-3c): 다음 마일스톤에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Ghost skills: %d/%d passives=%d attack=%.1f maxHP=%.0f atkSpeed=%.1f crit=%.1f cdr=%.2f"),
-		Skills.Num(), InSkills.Num(), InPassives.Num(),
-		GhostASC->GetNumericAttribute(UMLAttributeSet::GetAttackAttribute()), GhostASC->GetNumericAttribute(UMLAttributeSet::GetMaxHealthAttribute()),
-		GhostASC->GetNumericAttribute(UMLAttributeSet::GetAttackSpeedAttribute()), GhostASC->GetNumericAttribute(UMLAttributeSet::GetCritChanceAttribute()),
-		GhostASC->GetNumericAttribute(UMLAttributeSet::GetSkillCooldownReductionAttribute()));
-
 	GetWorldTimerManager().SetTimer(AttackTimerHandle, this, &AMLGhostActor::BeginAttack, AttackGap, false);
 }
 

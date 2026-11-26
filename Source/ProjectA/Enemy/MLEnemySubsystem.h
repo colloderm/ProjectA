@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "Enemy/MLFlowField.h"
 #include "MLEnemySubsystem.generated.h"
 
 class AMLEnemyActor;
@@ -127,6 +128,7 @@ private:
 	TArray<FMLEnemyEntry> Enemies;
 
 	TWeakObjectPtr<AMLHeroCharacter> CachedHero;
+	FMLFlowField FlowField; // design §6.5 장애물 회피 (M9-3d)
 	TMap<FName, float> RoomDamage;
 	TMap<FName, FText> DamageSourceNames;
 	int32 ActiveCount = 0;

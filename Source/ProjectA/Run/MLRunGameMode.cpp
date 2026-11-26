@@ -161,10 +161,6 @@ void AMLRunGameMode::StartRoom(EMLRoomType NewRoomType)
 		EnemySub->TakeRoomDamage();
 		const float ZoneDamage = GetZoneSpawn().DamageMult;
 		EnemySub->SetHeroDamageMult(ZoneDamage * EnemyHealthScale); // design §6.5: 구역 × 용병 등급 보정, 보스 방은 마지막 구역 값
-
-		// MLVerify(M9-3c): 다음 마일스톤에서 제거
-		UE_LOG(LogTemp, Display, TEXT("[MLVerify] Room start: zone=%d room=%d type=%d damageMult=%.2f (zone %.2f x grade %.2f)"),
-			CurrentZone, CurrentRoom, static_cast<int32>(NewRoomType), ZoneDamage * EnemyHealthScale, ZoneDamage, EnemyHealthScale);
 	}
 
 	if (NewRoomType == EMLRoomType::Boss)
@@ -225,10 +221,6 @@ void AMLRunGameMode::RollGhost()
 	bGhostOffered = true;
 	bGhostPending = true;
 	RoomGrave = *Grave;
-
-	// MLVerify(M9-3b): 다음 마일스톤에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Ghost planned: id=%d %s zone=%d room=%d at kills=%d/%d"),
-		RoomGrave.MercId, *RoomGrave.Name, CurrentZone, CurrentRoom, FMath::CeilToInt(RoomQuota * GhostKillStep), RoomQuota);
 }
 
 void AMLRunGameMode::SpawnGhost()
@@ -285,8 +277,6 @@ void AMLRunGameMode::EndGhost()
 	GetWorldTimerManager().ClearTimer(GhostTimerHandle);
 	if (!GhostActor) return;
 
-	// MLVerify(M9-3b): 다음 마일스톤에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Ghost end: defeated=%d secondsLeft=%d enemiesLeft=%d"), bGhostDefeated ? 1 : 0, GhostSecondsLeft, GetEnemiesLeft());
 	GhostActor->StopGhost();
 	GhostActor = nullptr;
 }
