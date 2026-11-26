@@ -32,6 +32,9 @@ public:
 	// Health가 0이 되면 UMLAttributeSet이 한 번 호출
 	void HandleDeath();
 	bool IsDead() const;
+
+	// design §6.2.3 망령의 둔화: 이동 속도 최대 30% 감소, 최대 1초. 겹치면 더 센 쪽, 더 긴 쪽
+	void ApplySlow(float SpeedMultiplier, float Duration);
 	
 	UMLRunProgressComponent* GetRunProgress() const { return RunProgress; }
 
@@ -47,6 +50,11 @@ private:
 	void HandleRegen();
 
 	FTimerHandle RegenTimerHandle;
+	FTimerHandle SlowTimerHandle;
+	float BaseWalkSpeed = 600.f; // 생성자 값, 둔화가 끝나면 이 값으로
+
+	static constexpr float MinSlowMultiplier = 0.7f;
+	static constexpr float MaxSlowSeconds = 1.f;
 
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
 	TObjectPtr<USpringArmComponent> CameraBoom;

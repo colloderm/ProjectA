@@ -3,30 +3,51 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AbilitySystemInterface.h"
 #include "Combat/MLWeaponTypes.h"
 #include "Enemy/MLEnemyActor.h"
+#include "UObject/SoftObjectPath.h"
 #include "MLGhostActor.generated.h"
 
+class UAbilitySystemComponent;
 class UBlendSpace;
+class UMaterialInterface;
+class UMLAttributeSet;
+class UMLAutoSkill;
 class USkeletalMeshComponent;
+struct FOnAttributeChangeData;
 
 // design §6.2.3 망령. 보스처럼 UMLEnemySubsystem에 들어 있고(모든 기술이 평소처럼 맞힘),
-// 이 액터는 옛 용병의 무기 방식으로 예고 공격 타이머만 돌림.
+// 이 액터는 옛 용병의 무기 방식으로 예고 공격을 하고, 옛 기술·패시브를 Lv1로 씀 (M9-3c).
 UCLASS()
-class PROJECTA_API AMLGhostActor : public AMLEnemyActor
+class PROJECTA_API AMLGhostActor : public AMLEnemyActor, public IAbilitySystemInterface
 {
 	GENERATED_BODY()
 
 public:
 	AMLGhostActor();
 
+	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override { return GhostASC; }
+
 	// 피해의 구역·등급 배율은 적 서브시스템이 한 번에 적용 (SetHeroDamageMult)
-	void StartGhost(int32 InEnemyIndex, EMLAttackType InWeaponType);
+	void StartGhost(int32 InEnemyIndex, EMLAttackType InWeaponType, const TArray<FSoftClassPath>& InSkills, const TArray<FName>& InPassives);
 	void StopGhost();
 	int32 GetEnemyIndex() const { return EnemyIndex; }
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	// 기술이 읽는 공격력·치명·쿨타임 감소와 수호 방패의 보호막 (체력은 적 서브시스템)
+	UPROPERTY(VisibleAnywhere, Category = "Ghost")
+	TObjectPtr<UAbilitySystemComponent> GhostASC;
+
+	UPROPERTY()
+	TObjectPtr<UMLAttributeSet> GhostAttributes;
+
+	// 망령의 기술 시각 효과와 탄에 덮는 머티리얼 (영웅의 같은 기술과 구분)
+	UPROPERTY(EditDefaultsOnly, Category = "Ghost")
+	TObjectPtr<UMaterialInterface> SkillOverlayMaterial;
 
 	// 사람 형태 (부모의 VisualMesh는 비워 둠)
 	UPROPERTY(VisibleAnywhere, Category = "Ghost")
@@ -81,6 +102,12 @@ private:
 	void ExecuteAttack();
 	bool IsHit(const FVector& HeroLoc) const;
 	void SetMoving(bool bMoving);
+	void ApplyPassives(const TArray<FName>& Passives);
+	void HandleShieldChanged(const FOnAttributeChangeData& ChangeData);
+	void HandleShieldBroken(int32 BrokenIndex);
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMLAutoSkill>> Skills;
 
 	FTimerHandle AttackTimerHandle;
 	EMLAttackType WeaponType = EMLAttackType::Sword;

@@ -25,9 +25,7 @@ void UMLSkill_Blades::OnAcquired()
 	AActor* Hero = GetHero();
 	if (!World || !Hero || !PivotClass) return;
 
-	FActorSpawnParameters SpawnInfo;
-	SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	Pivot = World->SpawnActor<AMLSkillVisualActor>(PivotClass, Hero->GetActorLocation(), FRotator::ZeroRotator, SpawnInfo);
+	Pivot = SpawnVisual(PivotClass, Hero->GetActorLocation());
 	if (!Pivot) return;
 
 	Pivot->AttachToActor(Hero, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
@@ -43,7 +41,7 @@ void UMLSkill_Blades::OnAcquired()
 	{
 		World->GetTimerManager().SetTimer(PulseTimerHandle, this, &UMLSkill_Blades::StartPulse, PulseInterval, true);
 	}
-	if (ShotInterval > 0.f)
+	if (ShotInterval > 0.f && !IsHostile()) // 3단계 특수 공격은 망령이 쓰지 않음 (design §6.2.3)
 	{
 		World->GetTimerManager().SetTimer(ShotTimerHandle, this, &UMLSkill_Blades::FireShots, ShotInterval, true);
 	}
@@ -52,8 +50,7 @@ void UMLSkill_Blades::OnAcquired()
 void UMLSkill_Blades::StartPulse()
 {
 	UWorld* World = GetWorld();
-	const UMLEnemySubsystem* EnemySub = GetEnemySubsystem();
-	if (!World || !bBladesActive || IsHeroDead() || !EnemySub || EnemySub->GetActiveCount() == 0) return;
+	if (!World || !bBladesActive || IsHeroDead() || !HasTargets()) return;
 
 	PulseElapsed = 0.f;
 	World->GetTimerManager().SetTimer(PulseStepHandle, this, &UMLSkill_Blades::StepPulse, PulseStepSeconds, true);
@@ -61,10 +58,7 @@ void UMLSkill_Blades::StartPulse()
 
 void UMLSkill_Blades::FireShots()
 {
-	UWorld* World = GetWorld();
-	const UMLEnemySubsystem* EnemySub = GetEnemySubsystem();
-	UMLProjectileSubsystem* ProjectileSub = World ? World->GetSubsystem<UMLProjectileSubsystem>() : nullptr;
-	if (!Pivot || !ProjectileSub || !bBladesActive || IsHeroDead() || !EnemySub || EnemySub->GetActiveCount() == 0) return;
+	if (!Pivot || !bBladesActive || IsHeroDead() || !HasTargets()) return;
 
 	FMLProjectileLaunch Shot;
 	Shot.ProjectileClass = ShotClass;
@@ -79,7 +73,7 @@ void UMLSkill_Blades::FireShots()
 		if (!Blade) continue;
 		Shot.Start = Blade->GetActorLocation();
 		Shot.Velocity = (Shot.Start - Center).GetSafeNormal2D() * ShotSpeed; // 칼날 위치에서 바깥 방향
-		ProjectileSub->Launch(Shot);
+		LaunchShot(Shot);
 	}
 }
 
@@ -156,14 +150,11 @@ void UMLSkill_Blades::OnLevelChanged()
 	}
 	Blades.Reset();
 
-	FActorSpawnParameters SpawnInfo;
-	SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
 	const int32 BladeCount = FMath::Max(1, LevelValue(BladeCountByLevel));
 	for (int32 i = 0; i < BladeCount; ++i)
 	{
 		const FRotator Angle(0.f, 360.f * i / BladeCount, 0.f);
-		AMLSkillVisualActor* Blade = World->SpawnActor<AMLSkillVisualActor>(BladeClass, Pivot->GetActorLocation(), FRotator::ZeroRotator, SpawnInfo);
+		AMLSkillVisualActor* Blade = SpawnVisual(BladeClass, Pivot->GetActorLocation());
 		if (!Blade) continue;
 
 		Blade->AttachToActor(Pivot, FAttachmentTransformRules::KeepWorldTransform);
@@ -178,15 +169,12 @@ void UMLSkill_Blades::ApplyBladeDamage()
 {
 	if (IsHeroDead()) return;
 
-	UMLEnemySubsystem* EnemySub = GetEnemySubsystem();
-	if (!EnemySub) return;
-
 	const float Damage = RollDamage(LevelValue(DamageMultByLevel));
 	for (const TObjectPtr<AMLSkillVisualActor>& Blade : Blades)
 	{
 		if (Blade)
 		{
-			EnemySub->DamageInRadius(Blade->GetActorLocation(), HitRadius, Damage, GetDamageSource());
+			DamageArea(Blade->GetActorLocation(), HitRadius, Damage);
 		}
 	}
 }
@@ -218,6 +206,13 @@ void UMLSkill_ChainLightning::Fire()
 	UMLEnemySubsystem* EnemySub = GetEnemySubsystem();
 	AActor* Hero = GetHero();
 	if (!EnemySub || !Hero) return;
+
+	if (IsHostile()) // design §6.2.3: 즉시 명중 대신 영웅 자리에 예고 후 명중
+	{
+		const int32 Target = FindTarget(Hero->GetActorLocation(), FirstRange);
+		if (Target != INDEX_NONE) HostileStrike(GetTargetLocation(Target), HostileStrikeRadius, RollDamage(LevelValue(DamageMultByLevel)));
+		return;
+	}
 
 	TArray<int32> HitIndices;
 	ChainFrom(Hero->GetActorLocation(), FirstRange, LevelValue(TargetCountByLevel), RollDamage(LevelValue(DamageMultByLevel)), HitIndices);
@@ -259,6 +254,13 @@ void UMLSkill_ThunderStrike::Fire()
 	AActor* Hero = GetHero();
 	if (!EnemySub || !Hero) return;
 
+	if (IsHostile()) // design §6.2.3: 낙뢰 1발을 영웅 자리에 예고 후 (연쇄 없음)
+	{
+		const int32 Target = FindTarget(Hero->GetActorLocation(), StrikeRange);
+		if (Target != INDEX_NONE) HostileStrike(GetTargetLocation(Target), StrikeRadius, RollDamage(LevelValue(StrikeDamageMultByLevel)));
+		return;
+	}
+
 	TArray<int32> Candidates;
 	EnemySub->GetEnemiesInRange(Hero->GetActorLocation(), StrikeRange, Candidates);
 	if (Candidates.Num() == 0) return;
@@ -298,7 +300,7 @@ int32 UMLSkill_ThunderStrike::StrikeAt(int32 TargetIndex, float StrikeDamage, fl
 void UMLSkill_ThunderStrike::OnAcquired()
 {
 	Super::OnAcquired();
-	if (StormInterval > 0.f)
+	if (StormInterval > 0.f && !IsHostile()) // 3단계 특수 공격은 망령이 쓰지 않음
 	{
 		if (UWorld* World = GetWorld())
 		{
@@ -361,12 +363,7 @@ void UMLSkill_FireField::Fire()
 	if (!Field)
 	{
 		Field = &Fields.AddDefaulted_GetRef();
-		if (FieldClass)
-		{
-			FActorSpawnParameters SpawnInfo;
-			SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-			Field->Actor = World->SpawnActor<AMLSkillVisualActor>(FieldClass, Hero->GetActorLocation(), FRotator::ZeroRotator, SpawnInfo);
-		}
+		Field->Actor = SpawnVisual(FieldClass, Hero->GetActorLocation());
 	}
 
 	const FVector2D Offset = FMath::RandPointInCircle(SpawnRange);
@@ -389,17 +386,13 @@ void UMLSkill_FireField::TickFields()
 {
 	if (IsHeroDead()) return;
 
-	UMLEnemySubsystem* EnemySub = GetEnemySubsystem();
 	const float Damage = RollDamage(TickDamageMult);
 
 	for (FMLFireFieldEntry& Field : Fields)
 	{
 		if (!Field.bActive) continue;
 
-		if (EnemySub)
-		{
-			Field.TotalHits += EnemySub->DamageInRadius(Field.Center, Field.Radius, Damage, GetDamageSource());
-		}
+		Field.TotalHits += DamageArea(Field.Center, Field.Radius, Damage);
 
 		Field.TimeLeft -= TickInterval;
 		if (Field.TimeLeft <= 0.f)
@@ -436,16 +429,11 @@ void UMLSkill_GuardShield::OnAcquired()
 
 	ASC->GetGameplayAttributeValueChangeDelegate(UMLAttributeSet::GetShieldAttribute()).AddUObject(this, &UMLSkill_GuardShield::HandleShieldChanged);
 
-	if (ShieldVisualClass)
+	ShieldVisual = SpawnVisual(ShieldVisualClass, Hero->GetActorLocation());
+	if (ShieldVisual)
 	{
-		FActorSpawnParameters SpawnInfo;
-		SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		ShieldVisual = World->SpawnActor<AMLSkillVisualActor>(ShieldVisualClass, Hero->GetActorLocation(), FRotator::ZeroRotator, SpawnInfo);
-		if (ShieldVisual)
-		{
-			ShieldVisual->AttachToActor(Hero, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-			ShieldVisual->SetActorHiddenInGame(true);
-		}
+		ShieldVisual->AttachToActor(Hero, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+		ShieldVisual->SetActorHiddenInGame(true);
 	}
 }
 
@@ -508,6 +496,12 @@ void UMLSkill_FrostNova::Fire()
 		Super::Fire();
 	}
 
+	if (IsHostile()) // design §6.2.3: 망령 주변에 예고 후 폭발, 결빙 대신 둔화 (영웅 쪽에서 최대 30%·1초로 제한)
+	{
+		HostileStrike(Hero->GetActorLocation(), LevelValue(NovaRadiusByLevel), RollDamage(LevelValue(NovaDamageMultByLevel)), 0.f, FreezeSeconds);
+		return;
+	}
+
 	const FVector Center = Hero->GetActorLocation();
 	NovaTargetRadius = LevelValue(NovaRadiusByLevel);
 	EnemySub->DamageInRadius(Center, NovaTargetRadius, RollDamage(LevelValue(NovaDamageMultByLevel)), GetDamageSource());
@@ -536,7 +530,7 @@ void UMLSkill_FrostNova::Fire()
 void UMLSkill_FrostNova::OnAcquired()
 {
 	Super::OnAcquired();
-	if (GlacierInterval > 0.f)
+	if (GlacierInterval > 0.f && !IsHostile()) // 3단계 특수 공격은 망령이 쓰지 않음
 	{
 		if (UWorld* World = GetWorld())
 		{
@@ -598,10 +592,8 @@ void UMLSkill_FrostNova::StepNovaVisual()
 
 void UMLSkill_FrostNova::OnShieldBroken()
 {
-	UWorld* World = GetWorld();
 	AActor* Hero = GetHero();
-	UMLProjectileSubsystem* ProjectileSub = World ? World->GetSubsystem<UMLProjectileSubsystem>() : nullptr;
-	if (!Hero || !ProjectileSub || IsHeroDead()) return;
+	if (!Hero || IsHeroDead()) return;
 
 	const int32 Count = FMath::Max(1, BreakShardCount);
 	const float AngleOffset = FMath::FRandRange(0.f, 360.f / Count);
@@ -619,7 +611,7 @@ void UMLSkill_FrostNova::OnShieldBroken()
 	for (int32 i = 0; i < Count; ++i)
 	{
 		Shot.Velocity = FRotator(0.f, AngleOffset + 360.f * i / Count, 0.f).Vector() * ShardSpeed;
-		ProjectileSub->Launch(Shot);
+		LaunchShot(Shot);
 	}
 }
 
@@ -647,24 +639,19 @@ UMLSkill_IceShards::UMLSkill_IceShards()
 
 void UMLSkill_IceShards::Fire()
 {
-	UWorld* World = GetWorld();
 	AActor* Hero = GetHero();
-	UMLProjectileSubsystem* ProjectileSub = World ? World->GetSubsystem<UMLProjectileSubsystem>() : nullptr;
-	if (!Hero || !ProjectileSub) return;
+	if (!Hero) return;
 
 	const FMLShardPattern Pattern = LevelValue(PatternByLevel);
 	const int32 ShardCount = FMath::Max(1, Pattern.Count);
 	const bool bRing = Pattern.ArcDeg >= 360.f;
 
-	// 기준 방향: 가장 가까운 적, 없으면 무작위
+	// 기준 방향: 가장 가까운 대상, 없으면 무작위
 	float BaseYaw = FMath::FRandRange(0.f, 360.f);
-	if (const UMLEnemySubsystem* EnemySub = GetEnemySubsystem())
+	const int32 Nearest = FindTarget(Hero->GetActorLocation(), ShardRange);
+	if (Nearest != INDEX_NONE)
 	{
-		const int32 Nearest = EnemySub->FindNearestEnemy(Hero->GetActorLocation(), ShardRange);
-		if (Nearest != INDEX_NONE)
-		{
-			BaseYaw = (EnemySub->GetEnemyLocation(Nearest) - Hero->GetActorLocation()).Rotation().Yaw;
-		}
+		BaseYaw = (GetTargetLocation(Nearest) - Hero->GetActorLocation()).Rotation().Yaw;
 	}
 	const float Step = bRing ? 360.f / ShardCount : (ShardCount > 1 ? Pattern.ArcDeg / (ShardCount - 1) : 0.f);
 	const float StartYaw = bRing ? BaseYaw : BaseYaw - Pattern.ArcDeg * 0.5f;
@@ -685,7 +672,7 @@ void UMLSkill_IceShards::Fire()
 		for (int32 i = 0; i < ShardCount; ++i)
 		{
 			Shot.Velocity = FRotator(0.f, StartYaw + Step * i + 180.f * Side, 0.f).Vector() * ShardSpeed;
-			ProjectileSub->Launch(Shot);
+			LaunchShot(Shot);
 		}
 	}
 }
@@ -699,17 +686,14 @@ UMLSkill_HomingBolt::UMLSkill_HomingBolt()
 
 void UMLSkill_HomingBolt::Fire()
 {
-	UWorld* World = GetWorld();
 	AActor* Hero = GetHero();
-	UMLEnemySubsystem* EnemySub = GetEnemySubsystem();
-	UMLProjectileSubsystem* ProjectileSub = World ? World->GetSubsystem<UMLProjectileSubsystem>() : nullptr;
-	if (!Hero || !EnemySub || !ProjectileSub) return;
+	if (!Hero) return;
 
 	const FVector Origin = Hero->GetActorLocation();
-	const int32 TargetIndex = EnemySub->FindNearestEnemy(Origin, BoltRange);
+	const int32 TargetIndex = FindTarget(Origin, BoltRange);
 	if (TargetIndex == INDEX_NONE) return; // 쫓을 대상 없음: 이번 시전 건너뜀
 
-	const FVector AimDir = (EnemySub->GetEnemyLocation(TargetIndex) - Origin).GetSafeNormal2D();
+	const FVector AimDir = (GetTargetLocation(TargetIndex) - Origin).GetSafeNormal2D();
 	const int32 BoltCount = FMath::Max(1, LevelValue(BoltCountByLevel));
 
 	FMLProjectileLaunch Shot;
@@ -726,7 +710,7 @@ void UMLSkill_HomingBolt::Fire()
 	{
 		const float Spread = (i - (BoltCount - 1) * 0.5f) * SpreadAngle;
 		Shot.Velocity = AimDir.RotateAngleAxis(Spread, FVector::UpVector) * BoltSpeed;
-		if (ProjectileSub->Launch(Shot)) ++Launched;
+		if (LaunchShot(Shot)) ++Launched;
 	}
 }
 
@@ -738,15 +722,10 @@ void UMLSkill_Aura::OnAcquired()
 	AActor* Hero = GetHero();
 	if (!World || !Hero) return;
 
-	if (AuraVisualClass)
+	AuraVisual = SpawnVisual(AuraVisualClass, Hero->GetActorLocation());
+	if (AuraVisual)
 	{
-		FActorSpawnParameters SpawnInfo;
-		SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		AuraVisual = World->SpawnActor<AMLSkillVisualActor>(AuraVisualClass, Hero->GetActorLocation(), FRotator::ZeroRotator, SpawnInfo);
-		if (AuraVisual)
-		{
-			AuraVisual->AttachToActor(Hero, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-		}
+		AuraVisual->AttachToActor(Hero, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 	}
 
 	World->GetTimerManager().SetTimer(AuraTimerHandle, this, &UMLSkill_Aura::TickAura, TickInterval, true);
@@ -754,7 +733,7 @@ void UMLSkill_Aura::OnAcquired()
 	{
 		World->GetTimerManager().SetTimer(FlameTimerHandle, this, &UMLSkill_Aura::DropFlame, FlameInterval, true);
 	}
-	if (bDeathBurst)
+	if (bDeathBurst && !IsHostile()) // 3단계 특수 공격은 망령이 쓰지 않음
 	{
 		if (UMLEnemySubsystem* EnemySub = GetEnemySubsystem())
 		{
@@ -775,17 +754,16 @@ void UMLSkill_Aura::OnLevelChanged()
 void UMLSkill_Aura::TickAura()
 {
 	AActor* Hero = GetHero();
-	UMLEnemySubsystem* EnemySub = GetEnemySubsystem();
-	if (!Hero || !EnemySub || IsHeroDead()) return;
+	if (!Hero || IsHeroDead()) return;
 
-	EnemySub->DamageInRadius(Hero->GetActorLocation(), LevelValue(RadiusByLevel), RollDamage(LevelValue(TickDamageMultByLevel)), GetDamageSource());
+	DamageArea(Hero->GetActorLocation(), LevelValue(RadiusByLevel), RollDamage(LevelValue(TickDamageMultByLevel)));
 
 	const float FlameDamage = RollDamage(FlameTickDamageMult);
 	for (FMLFlamePatch& Flame : Flames)
 	{
 		if (Flame.TimeLeft <= 0.f) continue;
 
-		EnemySub->DamageInRadius(Flame.Center, FlameRadius, FlameDamage, GetDamageSource());
+		DamageArea(Flame.Center, FlameRadius, FlameDamage);
 		Flame.TimeLeft -= TickInterval;
 		if (Flame.TimeLeft <= 0.f && Flame.Actor)
 		{
@@ -844,21 +822,14 @@ void UMLSkill_Aura::ProcessBursts()
 
 void UMLSkill_Aura::DropFlame()
 {
-	UWorld* World = GetWorld();
 	AActor* Hero = GetHero();
-	const UMLEnemySubsystem* EnemySub = GetEnemySubsystem();
-	if (!World || !Hero || IsHeroDead() || !EnemySub || EnemySub->GetActiveCount() == 0) return; // 방 사이에는 남기지 않음
+	if (!Hero || IsHeroDead() || !HasTargets()) return; // 방 사이에는 남기지 않음
 
 	FMLFlamePatch* Flame = Flames.FindByPredicate([](const FMLFlamePatch& F) { return F.TimeLeft <= 0.f; });
 	if (!Flame)
 	{
 		Flame = &Flames.AddDefaulted_GetRef();
-		if (FlameVisualClass)
-		{
-			FActorSpawnParameters SpawnInfo;
-			SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-			Flame->Actor = World->SpawnActor<AMLSkillVisualActor>(FlameVisualClass, Hero->GetActorLocation(), FRotator::ZeroRotator, SpawnInfo);
-		}
+		Flame->Actor = SpawnVisual(FlameVisualClass, Hero->GetActorLocation());
 	}
 
 	Flame->Center = Hero->GetActorLocation();

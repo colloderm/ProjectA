@@ -7,6 +7,7 @@
 #include "MLSkillVisualActor.generated.h"
 
 class UStaticMeshComponent;
+class UMaterialInterface;
 
 UCLASS()
 class PROJECTA_API AMLSkillVisualActor : public AActor
@@ -15,6 +16,9 @@ class PROJECTA_API AMLSkillVisualActor : public AActor
 
 public:
 	AMLSkillVisualActor();
+
+	// design §6.2.3 망령의 기술 표시: BP에 추가한 메시를 포함해 모든 메시에 적용
+	void SetOverlay(UMaterialInterface* Overlay);
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Visual")

@@ -7,6 +7,7 @@
 #include "MLProjectileActor.generated.h"
 
 class UStaticMeshComponent;
+class UMaterialInterface;
 
 UCLASS()
 class PROJECTA_API AMLProjectileActor : public AActor
@@ -15,6 +16,9 @@ class PROJECTA_API AMLProjectileActor : public AActor
 
 public:
 	AMLProjectileActor();
+
+	// design §6.2.3 망령의 탄 표시. nullptr = 원래 모습
+	void SetOverlay(UMaterialInterface* Overlay);
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Projectile")

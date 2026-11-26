@@ -3,6 +3,7 @@
 #include "MLProjectileActor.h"
 
 #include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInterface.h"
 
 AMLProjectileActor::AMLProjectileActor()
 {
@@ -13,4 +14,9 @@ AMLProjectileActor::AMLProjectileActor()
 	ProjectileMesh->SetCollisionProfileName(TEXT("NoCollision"));
 	ProjectileMesh->SetGenerateOverlapEvents(false);
 	ProjectileMesh->SetCanEverAffectNavigation(false);
+}
+
+void AMLProjectileActor::SetOverlay(UMaterialInterface* Overlay)
+{
+	ProjectileMesh->SetOverlayMaterial(Overlay);
 }

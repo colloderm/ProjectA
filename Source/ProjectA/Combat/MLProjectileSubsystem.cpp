@@ -4,6 +4,8 @@
 
 #include "Combat/MLProjectileActor.h"
 #include "Enemy/MLEnemySubsystem.h"
+#include "Hero/MLHeroCharacter.h"
+#include "Kismet/GameplayStatics.h"
 
 bool UMLProjectileSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
@@ -46,7 +48,9 @@ bool UMLProjectileSubsystem::Launch(const FMLProjectileLaunch& LaunchInfo)
 	Slot->SlowDuration = LaunchInfo.SlowDuration;
 	Slot->HomingTurnRate = LaunchInfo.HomingTurnRate;
 	Slot->Source = LaunchInfo.Source;
+	Slot->bHostile = LaunchInfo.bHostile;
 	Slot->bActive = true;
+	Slot->Actor->SetOverlay(LaunchInfo.Overlay); // 풀에서 다시 쓰므로 매번 설정 (nullptr = 원래 모습)
 	Slot->Actor->SetActorLocationAndRotation(LaunchInfo.Start, LaunchInfo.Velocity.Rotation());
 	Slot->Actor->SetActorHiddenInGame(false);
 	++ActiveCount;
@@ -60,12 +64,55 @@ void UMLProjectileSubsystem::Tick(float DeltaTime)
 	if (ActiveCount == 0) return;
 
 	UMLEnemySubsystem* EnemySub = GetWorld()->GetSubsystem<UMLEnemySubsystem>();
+	AMLHeroCharacter* Hero = Cast<AMLHeroCharacter>(UGameplayStatics::GetPlayerPawn(this, 0));
+	const bool bHeroAlive = Hero && !Hero->IsDead();
+	const FVector HeroLoc = bHeroAlive ? Hero->GetActorLocation() : FVector::ZeroVector;
+
+	// design §6.2.3 망령의 탄: 영웅 피해는 루프가 끝난 뒤 적용
+	// (영웅 보호막이 깨지면 눈보라가 탄을 쏘아 Projectiles 배열이 바뀔 수 있음)
+	float HostileDamage = 0.f;
+	float HostileSlowFactor = 1.f;
+	float HostileSlowSeconds = 0.f;
 
 	for (FMLProjectileEntry& Entry : Projectiles)
 	{
 		if (!Entry.bActive || !Entry.Actor) continue;
 
 		FVector Loc = Entry.Actor->GetActorLocation();
+
+		if (Entry.bHostile)
+		{
+			if (Entry.HomingTurnRate > 0.f && bHeroAlive)
+			{
+				const FVector CurrentDir = Entry.Velocity.GetSafeNormal2D();
+				const FVector DesiredDir = (HeroLoc - Loc).GetSafeNormal2D();
+				const float SignedAngle = FMath::Atan2(CurrentDir.X * DesiredDir.Y - CurrentDir.Y * DesiredDir.X, FVector::DotProduct(CurrentDir, DesiredDir));
+				const float MaxTurn = FMath::DegreesToRadians(Entry.HomingTurnRate) * DeltaTime;
+				Entry.Velocity = CurrentDir.RotateAngleAxisRad(FMath::Clamp(SignedAngle, -MaxTurn, MaxTurn), FVector::UpVector) * Entry.Velocity.Size2D();
+				Entry.Actor->SetActorRotation(Entry.Velocity.Rotation());
+			}
+
+			const FVector Step = Entry.Velocity * DeltaTime;
+			Loc += Step;
+			Entry.RangeLeft -= Step.Size();
+			Entry.Actor->SetActorLocation(Loc);
+
+			if (bHeroAlive && FVector::Dist2D(Loc, HeroLoc) <= Entry.HitRadius + HeroHitRadius)
+			{
+				HostileDamage = FMath::Max(HostileDamage, Entry.Damage); // 한 프레임에 여러 발이어도 1번 (0.5초 제한은 적 서브시스템)
+				if (Entry.SlowDuration > 0.f)
+				{
+					HostileSlowFactor = FMath::Min(HostileSlowFactor, Entry.SlowFactor);
+					HostileSlowSeconds = FMath::Max(HostileSlowSeconds, Entry.SlowDuration);
+				}
+				Deactivate(Entry);
+			}
+			else if (Entry.RangeLeft <= 0.f)
+			{
+				Deactivate(Entry);
+			}
+			continue;
+		}
 
 		if (Entry.HomingTurnRate > 0.f && EnemySub)
 		{
@@ -103,6 +150,12 @@ void UMLProjectileSubsystem::Tick(float DeltaTime)
 		{
 			Deactivate(Entry);
 		}
+	}
+
+	if (HostileDamage > 0.f && EnemySub && bHeroAlive)
+	{
+		EnemySub->DamageHeroBySkill(HostileDamage);
+		if (HostileSlowSeconds > 0.f) Hero->ApplySlow(HostileSlowFactor, HostileSlowSeconds);
 	}
 }
 

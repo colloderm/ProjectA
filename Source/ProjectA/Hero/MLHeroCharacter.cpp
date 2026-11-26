@@ -37,7 +37,7 @@ AMLHeroCharacter::AMLHeroCharacter()
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
 	MoveComp->bOrientRotationToMovement = true;
 	MoveComp->RotationRate = FRotator(0.f, 720.f, 0.f);
-	MoveComp->MaxWalkSpeed = 600.f; // design §6.1: 모든 용병 고정
+	MoveComp->MaxWalkSpeed = BaseWalkSpeed; // design §6.1: 모든 용병 고정
 	MoveComp->bConstrainToPlane = true;
 	MoveComp->bSnapToPlaneAtStart = true;
 
@@ -223,6 +223,21 @@ void AMLHeroCharacter::HandleDeath()
 	{
 		RunMode->HandleHeroDied();
 	}
+}
+
+void AMLHeroCharacter::ApplySlow(float SpeedMultiplier, float Duration)
+{
+	if (IsDead() || Duration <= 0.f) return;
+
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+	const float NewSpeed = BaseWalkSpeed * FMath::Clamp(SpeedMultiplier, MinSlowMultiplier, 1.f);
+	MoveComp->MaxWalkSpeed = FMath::Min(MoveComp->MaxWalkSpeed, NewSpeed);
+
+	const float Remaining = GetWorldTimerManager().GetTimerRemaining(SlowTimerHandle);
+	GetWorldTimerManager().SetTimer(SlowTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]()
+	{
+		GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed;
+	}), FMath::Max(Remaining, FMath::Min(Duration, MaxSlowSeconds)), false);
 }
 
 bool AMLHeroCharacter::IsDead() const

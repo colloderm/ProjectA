@@ -255,7 +255,7 @@ void AMLRunGameMode::SpawnGhost()
 
 	bGhostPending = false;
 	GhostActor = Cast<AMLGhostActor>(EnemySub->GetEnemyActor(GhostIndex));
-	if (GhostActor) GhostActor->StartGhost(GhostIndex, RoomGrave.WeaponType);
+	if (GhostActor) GhostActor->StartGhost(GhostIndex, RoomGrave.WeaponType, RoomGrave.Skills, RoomGrave.Passives);
 	GhostSecondsLeft = FMath::CeilToInt(GhostSeconds);
 	GetWorldTimerManager().SetTimer(GhostTimerHandle, this, &AMLRunGameMode::GhostSecondTick, 1.f, true);
 	OnRoomStateChanged.Broadcast(); // HUD: 안내 → 보스 패널
