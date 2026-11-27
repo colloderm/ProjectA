@@ -487,8 +487,6 @@ void UMLRunProgressComponent::OpenGraveChoices(const TArray<FName>& ItemIds)
 	if (bLevelUpOpen)
 	{
 		PendingGraveItems = ItemIds;
-		// MLVerify(M9-3): 다음 마일스톤에서 제거
-		UE_LOG(LogTemp, Display, TEXT("[MLVerify] Grave choice deferred (level up open)"));
 		return;
 	}
 

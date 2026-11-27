@@ -35,7 +35,6 @@ private:
 	TArray<int32> Distance; // 창 안 칸별 영웅까지의 칸 수, -1 = 막힘 / 못 감
 	FIntPoint Origin = FIntPoint::ZeroValue; // 영웅의 칸
 	float RebuildTimer = 0.f;
-	int32 LastBlockedCount = -1;
 	bool bBuilt = false;
 	bool bHasObstacles = false;
 

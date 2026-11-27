@@ -4,7 +4,6 @@
 
 #include "CollisionQueryParams.h"
 #include "Engine/World.h"
-#include "HAL/PlatformTime.h"
 
 namespace
 {
@@ -59,7 +58,6 @@ void FMLFlowField::Update(UWorld* World, const FVector& HeroLoc, float DeltaTime
 
 void FMLFlowField::Build(UWorld* World, float Z)
 {
-	const double StartSeconds = FPlatformTime::Seconds();
 	const int32 Size = WindowSize(Radius);
 	Distance.Init(-1, Size * Size);
 	bBuilt = true;
@@ -85,13 +83,6 @@ void FMLFlowField::Build(UWorld* World, float Z)
 	// 영웅 칸이 막혀 보이면 맵의 큰 물체(하늘 구체 등)에 충돌이 있는 것: 잘못된 길로 막히지 않게 끔
 	bHasObstacles = BlockedCount > 0 && !bHeroBlocked;
 
-	if (BlockedCount != LastBlockedCount)
-	{
-		LastBlockedCount = BlockedCount;
-		// MLVerify(M9-3d): 다음 마일스톤에서 제거
-		UE_LOG(LogTemp, Display, TEXT("[MLVerify] Flow field: blocked=%d/%d heroBlocked=%d active=%d cache=%d ms=%.2f"),
-			BlockedCount, Size * Size, bHeroBlocked ? 1 : 0, bHasObstacles ? 1 : 0, BlockedCache.Num(), (FPlatformTime::Seconds() - StartSeconds) * 1000.0);
-	}
 	if (!bHasObstacles) return;
 
 	// 영웅에서부터 너비 우선 탐색. 대각선은 양옆이 모두 비었을 때만 (모서리를 뚫지 않음)

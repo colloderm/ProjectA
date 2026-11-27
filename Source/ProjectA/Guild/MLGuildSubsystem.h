@@ -67,6 +67,8 @@ public:
 	const UMLSaveGame* GetSaveData() const;
 	const FMLGradeRow* FindGrade(EMLGrade Grade) const;
 	const FMLTalentRow* FindTalent(FName TalentId) const;
+	// design §7.3: 현재 용병의 재능 중 이 성격이 있는지 (원정 중 경로 판정, M9-4)
+	bool HasPersonality(EMLPersonality Personality) const;
 	const FMLItemRow* FindItem(FName ItemId) const;
 	int32 GetRerollCost() const;
 	int32 GetItemSellPrice(const FMLItemRow& Item) const; // design §8.4
@@ -91,6 +93,7 @@ public:
 	const FMLGrave* FindGraveInZone(int32 Zone) const;
 
 	// 개발 콘솔 (M8 길드 UI 전까지)
+	void SetFirstTalent(FName TalentId); // 시험용: 현재 용병의 첫 재능을 바꿈 (원정 중에도)
 	void AddGrave(int32 Zone, EMLAttackType WeaponType, const TArray<FSoftClassPath>& Skills); // 현재 용병의 장비를 복사한 시험용 묘비
 	void LogStatus() const;
 	void ResetSave();

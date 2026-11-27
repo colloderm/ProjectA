@@ -121,6 +121,7 @@ private:
 	APlayerController* GetHeroPC() const;
 	int32 GetRunGold() const;
 	UMLGuildSubsystem* GetGuild() const;
+	bool HasPersonality(EMLPersonality Personality) const; // design §7.3 (M9-4)
 
 	// --- 구조 (design §6.2) ---
 	UPROPERTY(EditDefaultsOnly, Category = "Run|Structure")
@@ -138,6 +139,14 @@ private:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Run|Rooms")
 	TMap<EMLRoomType, float> RoomWeights;
+
+	// design §7.3 성격 (M9-4): 탐욕가·추적자·순례자가 좋아하는 방의 포털 가중치 배율
+	UPROPERTY(EditDefaultsOnly, Category = "Run|Personality", meta = (ClampMin = "1"))
+	float PersonalityWeightMult = 2.f;
+
+	// 탐욕가: 탐욕 단계를 정하는 미확보 가치에 곱함 (1.1 = 10% 빨리 오름)
+	UPROPERTY(EditDefaultsOnly, Category = "Run|Personality", meta = (ClampMin = "1"))
+	float GreedyGreedMult = 1.1f;
 	
 	// --- 탐욕 (design §6.2.2) ---
 	// 탐욕 1..N에 필요한 원정 골드 (오름차순). 방이 시작될 때마다 한 번 읽음.

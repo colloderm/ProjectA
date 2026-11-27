@@ -254,10 +254,6 @@ void AMLRunGameMode::SpawnGhost()
 	GetWorldTimerManager().SetTimer(GhostTimerHandle, this, &AMLRunGameMode::GhostSecondTick, 1.f, true);
 	OnRoomStateChanged.Broadcast(); // HUD: 안내 → 보스 패널
 
-	// MLVerify(M9-3b): 다음 마일스톤에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Ghost start: id=%d %s zone=%d weapon=%d hpMult=%.2f (zone %.2f x grade %.2f) grade old=%d merc=%d used=%d"),
-		RoomGrave.MercId, *RoomGrave.Name, CurrentZone, static_cast<int32>(RoomGrave.WeaponType), ZoneHealth * GradeScale, ZoneHealth, GradeScale,
-		static_cast<int32>(RoomGrave.Grade), static_cast<int32>(Save->Merc.Grade), static_cast<int32>(GhostGrade));
 }
 
 void AMLRunGameMode::GhostSecondTick()
@@ -515,7 +511,13 @@ void AMLRunGameMode::OpenGates()
 	{
 		RollPortalTypes(bLastRoom, PortalTypes);
 	}
-	SpawnGates(PortalTypes, bLastRoom);
+	// design §7.3 겁쟁이 (M9-4): 구역의 첫 방 뒤에도 탈출 문
+	const bool bCowardDoor = !bLastRoom && CurrentRoom == 1 && HasPersonality(EMLPersonality::Coward);
+	SpawnGates(PortalTypes, bLastRoom || bCowardDoor);
+
+	// MLVerify(M9-4): 다음 마일스톤에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Portals: zone=%d room=%d count=%d door=%d coward=%d"),
+		CurrentZone, CurrentRoom, PortalTypes.Num(), (bLastRoom || bCowardDoor) ? 1 : 0, bCowardDoor ? 1 : 0);
 
 	ChannelGate = nullptr;
 	ChannelSeconds = 0.f;
@@ -538,8 +540,6 @@ void AMLRunGameMode::ArriveAtChoiceArea()
 		PC->PlayerCameraManager->StartCameraFade(1.f, 0.f, FadeSeconds, FLinearColor::Black);
 	}
 
-	// MLVerify(M9-3e): 다음 마일스톤에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Choice area: zone=%d room=%d at %s"), CurrentZone, CurrentRoom, *ChoiceArea->GetActorLocation().ToString());
 	OpenGates();
 }
 
@@ -556,11 +556,23 @@ void AMLRunGameMode::RollPortalTypes(bool bNextIsZoneStart, TArray<EMLRoomType>&
 		if (Pair.Value <= 0.f || Type == EMLRoomType::Boss) continue;
 		if (bNextIsZoneStart && bSafeRoom) continue; // 구역의 첫 방은 전투 방
 		if (bAfterSafeRoom && bSafeRoom) continue;   // 안전 방이 연속으로 나오지 않음
+
+		// design §7.3 성격 (M9-4): 탐욕가 = 황금, 추적자 = 정예, 순례자 = 휴식터 가중치 ×PersonalityWeightMult
+		const bool bFavored = (Type == EMLRoomType::Gold && HasPersonality(EMLPersonality::Greedy))
+			|| (Type == EMLRoomType::Elite && HasPersonality(EMLPersonality::Hunter))
+			|| (Type == EMLRoomType::Rest && HasPersonality(EMLPersonality::Pilgrim));
 		Pool.Add(Type);
-		Weights.Add(Pair.Value);
+		Weights.Add(Pair.Value * (bFavored ? PersonalityWeightMult : 1.f));
 	}
 
-	while (OutTypes.Num() < PortalCount && Pool.Num() > 0)
+	// MLVerify(M9-4): 다음 마일스톤에서 제거
+	FString WeightText;
+	for (int32 i = 0; i < Pool.Num(); ++i) WeightText += FString::Printf(TEXT("%s=%.0f "), *MLRun::GetRoomTypeName(Pool[i]).ToString(), Weights[i]);
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Portal weights: %s"), *WeightText.TrimEnd());
+
+	// 정찰병: 포털 1개 더 (후보가 모자라면 있는 만큼)
+	const int32 Count = PortalCount + (HasPersonality(EMLPersonality::Scout) ? 1 : 0);
+	while (OutTypes.Num() < Count && Pool.Num() > 0)
 	{
 		float Total = 0.f;
 		for (const float W : Weights) Total += W;
@@ -988,6 +1000,12 @@ int32 AMLRunGameMode::GetRunGold() const
 	return RunProgress ? RunProgress->GetRunGold() : 0;
 }
 
+bool AMLRunGameMode::HasPersonality(EMLPersonality Personality) const
+{
+	const UMLGuildSubsystem* Guild = GetGuild();
+	return Guild && Guild->HasPersonality(Personality); // 매번 읽음: 시험 콘솔로 원정 중에 바꿔도 바로 반영
+}
+
 UMLGuildSubsystem* AMLRunGameMode::GetGuild() const
 {
 	const UGameInstance* GI = GetGameInstance();
@@ -999,7 +1017,8 @@ int32 AMLRunGameMode::GetGreedLevel() const
 	const AMLHeroCharacter* Hero = GetHero();
 	const UMLRunProgressComponent* RunProgress = Hero ? Hero->GetRunProgress() : nullptr;
 	// design §6.2.2: 미확보 가치 = 원정 골드 + 미확보 아이템당 Tier × ItemGreedGoldPerTier
-	const int32 Unsecured = RunProgress ? RunProgress->GetRunGold() + RunProgress->GetRunItemTierTotal() * ItemGreedGoldPerTier : 0;
+	int32 Unsecured = RunProgress ? RunProgress->GetRunGold() + RunProgress->GetRunItemTierTotal() * ItemGreedGoldPerTier : 0;
+	if (HasPersonality(EMLPersonality::Greedy)) Unsecured = FMath::RoundToInt(Unsecured * GreedyGreedMult); // design §7.3 탐욕가 (M9-4)
 	int32 Level = 0;
 	for (const int32 Threshold : GreedThresholds)
 	{

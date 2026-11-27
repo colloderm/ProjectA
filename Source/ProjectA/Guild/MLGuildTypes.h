@@ -25,6 +25,18 @@ enum class EMLTalentRarity : uint8
 	Legendary
 };
 
+// design §7.3 용병 성격 (M9-4): 원정 경로를 바꾸는 재능. None = 능력치만 주는 일반 재능
+UENUM(BlueprintType)
+enum class EMLPersonality : uint8
+{
+	None,
+	Greedy,  // 탐욕가: 황금 방 가중치 ×2, 탐욕 계산 값 +10%
+	Hunter,  // 추적자: 정예 방 가중치 ×2
+	Pilgrim, // 순례자: 휴식터 가중치 ×2
+	Coward,  // 겁쟁이: 구역의 첫 방 뒤에도 탈출 문
+	Scout    // 정찰병: 포털 4개
+};
+
 UENUM(BlueprintType)
 enum class EMLLeaveReason : uint8
 {
@@ -133,6 +145,7 @@ struct FMLTalentRow : public FTableRowBase
 	UPROPERTY(EditAnywhere) FMLStatBlock BonusPercent; // +18 = ×1.18, -8 = ×0.92
 	UPROPERTY(EditAnywhere) FMLStatBlock Flat;
 	UPROPERTY(EditAnywhere) FText Description;
+	UPROPERTY(EditAnywhere) EMLPersonality Personality = EMLPersonality::None; // design §7.3 (M9-4)
 };
 
 // DT_Titles 행 (design §8.7, M9-2). 해금 = 길드 누적 기록[Stat] >= Target
