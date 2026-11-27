@@ -61,6 +61,14 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> ObjectiveText;
 
+	// design §8.5.1 원정 중 의뢰 진행 (M9-5). 없으면 표시하지 않음
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> RequestText;
+
+	// 피해 없이 의뢰에서 이번 방에 맞았을 때 의뢰 줄 색
+	UPROPERTY(EditAnywhere, Category = "Request")
+	FLinearColor RequestFailColor = FLinearColor(1.f, 0.2f, 0.2f);
+
 	UPROPERTY(EditAnywhere, Category = "Arrows")
 	float ArrowShowDistance = 1000.f;
 
@@ -115,6 +123,7 @@ private:
 	void RefreshSlots();
 	void RefreshRoom();
 	void RefreshGold();
+	void RefreshRequest();
 	void RefreshDamagePanel();
 	void UpdateArrow(UWidget* Arrow, bool bActive, const FVector& Target, bool& bShown);
 
@@ -124,6 +133,7 @@ private:
 	bool bBossPanelShown = false;
 	bool bDamagePanelShown = false;
 	bool bObjectiveShown = false;
+	FSlateColor RequestDefaultColor; // 디자이너에서 정한 의뢰 줄 색, 실패 뒤 되돌리기용
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMLSlotIconWidget>> SkillSlots;

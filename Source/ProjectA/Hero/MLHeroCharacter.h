@@ -35,6 +35,9 @@ public:
 
 	// design §6.2.3 망령의 둔화: 이동 속도 최대 30% 감소, 최대 1초. 겹치면 더 센 쪽, 더 긴 쪽
 	void ApplySlow(float SpeedMultiplier, float Duration);
+
+	// UMLAttributeSet이 회피·무적을 지난 타격마다 호출 (design §8.5.1 피해 없는 방, M9-5)
+	void NotifyRunDamaged(); // AActor::NotifyHit과 이름이 겹치지 않게
 	
 	UMLRunProgressComponent* GetRunProgress() const { return RunProgress; }
 

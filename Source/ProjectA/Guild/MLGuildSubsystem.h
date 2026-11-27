@@ -80,6 +80,9 @@ public:
 	TArray<FName> GetFamilyUpgradeIds() const;
 	int32 GetFamilyUpgradeCost(FName UpgradeId) const; // design §8.3: Cost × CostGrowth^현재 레벨
 	const FMLRequestRow* FindRequest(FName RequestId) const;
+	const FMLRequestRow* GetActiveRequest() const; // 받은 의뢰, 없으면 nullptr
+	// design §8.5.1: 의뢰 진행도. 결과 화면(원정 끝)과 HUD(원정 중)가 같은 계산을 씀 (M9-5)
+	static int32 GetRequestProgress(const FMLRequestRow& Request, const FMLRunReport& Report);
 
 	// design §8.7 칭호 (M9-2): 해금은 길드 누적 기록으로 매번 계산 (따로 저장하지 않음)
 	const FMLTitleRow* FindTitle(FName TitleId) const;
@@ -93,6 +96,7 @@ public:
 	const FMLGrave* FindGraveInZone(int32 Zone) const;
 
 	// 개발 콘솔 (M8 길드 UI 전까지)
+	void SetActiveRequest(FName RequestId); // 시험용: 받은 의뢰를 바꿈 (원정 중에도)
 	void SetFirstTalent(FName TalentId); // 시험용: 현재 용병의 첫 재능을 바꿈 (원정 중에도)
 	void AddGrave(int32 Zone, EMLAttackType WeaponType, const TArray<FSoftClassPath>& Skills); // 현재 용병의 장비를 복사한 시험용 묘비
 	void LogStatus() const;

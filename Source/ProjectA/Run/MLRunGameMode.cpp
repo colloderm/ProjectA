@@ -154,6 +154,7 @@ void AMLRunGameMode::StartRoom(EMLRoomType NewRoomType)
 	bGhostPending = false;
 	bGhostWarned = false;
 	bGhostDefeated = false;
+	bRoomHit = false;
 	// design §6 HUD 피해 리포트: 전투 방만; 방 사이에 준 피해는 버림
 	LastRoomDamage.Reset();
 	bRoomDamageOpen = NewRoomType != EMLRoomType::Rest && NewRoomType != EMLRoomType::Shop;
@@ -439,6 +440,14 @@ void AMLRunGameMode::SpawnTick()
 void AMLRunGameMode::EndRoom()
 {
 	if (RunState != EMLRunState::Combat) return; // 영웅 사망, 또는 같은 프레임의 두 번째 지연 호출
+
+	// design §8.5.1 피해 없는 방 의뢰 (M9-5): 전투 방(일반·정예·황금)을 한 번도 맞지 않고 끝냄
+	const bool bCombatRoom = CurrentRoomType == EMLRoomType::Normal || CurrentRoomType == EMLRoomType::Elite || CurrentRoomType == EMLRoomType::Gold;
+	if (bCombatRoom && !bRoomHit) ++NoDamageRooms;
+
+	// MLVerify(M9-5): 다음 마일스톤에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Room end: zone=%d room=%d type=%d hit=%d noDamageRooms=%d"),
+		CurrentZone, CurrentRoom, static_cast<int32>(CurrentRoomType), bRoomHit ? 1 : 0, NoDamageRooms);
 	
 	// ClearAll 전에: 정예 방은 엘리트가 모두 죽었을 때만 승리로 침 (시간 초과는 제외)
 	if (CurrentRoomType == EMLRoomType::Elite && IsRoomCleared()) ++EliteRoomsCleared;
@@ -515,10 +524,6 @@ void AMLRunGameMode::OpenGates()
 	const bool bCowardDoor = !bLastRoom && CurrentRoom == 1 && HasPersonality(EMLPersonality::Coward);
 	SpawnGates(PortalTypes, bLastRoom || bCowardDoor);
 
-	// MLVerify(M9-4): 다음 마일스톤에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Portals: zone=%d room=%d count=%d door=%d coward=%d"),
-		CurrentZone, CurrentRoom, PortalTypes.Num(), (bLastRoom || bCowardDoor) ? 1 : 0, bCowardDoor ? 1 : 0);
-
 	ChannelGate = nullptr;
 	ChannelSeconds = 0.f;
 	GetWorldTimerManager().SetTimer(GateCheckTimerHandle, this, &AMLRunGameMode::GateCheckTick, GateCheckInterval, true);
@@ -564,11 +569,6 @@ void AMLRunGameMode::RollPortalTypes(bool bNextIsZoneStart, TArray<EMLRoomType>&
 		Pool.Add(Type);
 		Weights.Add(Pair.Value * (bFavored ? PersonalityWeightMult : 1.f));
 	}
-
-	// MLVerify(M9-4): 다음 마일스톤에서 제거
-	FString WeightText;
-	for (int32 i = 0; i < Pool.Num(); ++i) WeightText += FString::Printf(TEXT("%s=%.0f "), *MLRun::GetRoomTypeName(Pool[i]).ToString(), Weights[i]);
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Portal weights: %s"), *WeightText.TrimEnd());
 
 	// 정찰병: 포털 1개 더 (후보가 모자라면 있는 만큼)
 	const int32 Count = PortalCount + (HasPersonality(EMLPersonality::Scout) ? 1 : 0);
@@ -792,28 +792,7 @@ void AMLRunGameMode::FinishRun(bool bExtracted)
 
 	if (UMLGuildSubsystem* Guild = GetGuild())
 	{
-		FMLRunReport Report;
-		Report.bExtracted = bExtracted;
-		Report.bBossKilled = bBossDefeated;
-		Report.Zone = CurrentZone;
-		Report.Kills = KillCount;
-		Report.EliteKills = EliteKillCount;
-		Report.Gold = Summary.Gold;
-		Report.RewardMult = GetZoneSpawn().GoldMult; // design §7.1.1: 도달 구역의 보상 배율
-		if (RunProgress) Report.Items = RunProgress->GetRunItems();
-		Report.GoldRoomsCleared = GoldRoomsCleared;
-		Report.EliteRoomsCleared = EliteRoomsCleared;
-		Report.Greed = GetGreedLevel();
-		Report.ClearedGraveMercId = ClearedGraveMercId;
-		if (RunProgress)
-		{
-			for (const TObjectPtr<UMLAutoSkill>& Skill : RunProgress->GetOwnedSkills())
-			{
-				if (Skill) Report.Skills.Add(FSoftClassPath(Skill->GetClass()));
-			}
-			RunProgress->GetPassiveLevels().GetKeys(Report.Passives);
-		}
-		Summary.Reward = Guild->EndRun(Report);
+		Summary.Reward = Guild->EndRun(MakeRunReport(bExtracted));
 		if (bExtracted) Summary.Gold = Summary.Reward.GoldAdded; // 결과 화면은 실제로 길드에 들어간 값을 보여줌 (가문 보너스)
 	}
 
@@ -998,6 +977,58 @@ int32 AMLRunGameMode::GetRunGold() const
 	const AMLHeroCharacter* Hero = GetHero();
 	const UMLRunProgressComponent* RunProgress = Hero ? Hero->GetRunProgress() : nullptr;
 	return RunProgress ? RunProgress->GetRunGold() : 0;
+}
+
+FMLRunReport AMLRunGameMode::MakeRunReport(bool bExtracted) const
+{
+	const AMLHeroCharacter* Hero = GetHero();
+	const UMLRunProgressComponent* RunProgress = Hero ? Hero->GetRunProgress() : nullptr;
+
+	FMLRunReport Report;
+	Report.bExtracted = bExtracted;
+	Report.bBossKilled = bBossDefeated;
+	Report.Zone = CurrentZone;
+	Report.Kills = KillCount;
+	Report.EliteKills = EliteKillCount;
+	Report.Gold = GetRunGold();
+	Report.RewardMult = GetZoneSpawn().GoldMult; // design §7.1.1: 도달 구역의 보상 배율
+	Report.GoldRoomsCleared = GoldRoomsCleared;
+	Report.EliteRoomsCleared = EliteRoomsCleared;
+	Report.Greed = GetGreedLevel();
+	Report.ClearedGraveMercId = ClearedGraveMercId;
+	Report.NoDamageRooms = NoDamageRooms;
+	if (RunProgress)
+	{
+		Report.Items = RunProgress->GetRunItems();
+		Report.bShopSpent = RunProgress->HasShopSpent();
+		for (const TObjectPtr<UMLAutoSkill>& Skill : RunProgress->GetOwnedSkills())
+		{
+			if (Skill) Report.Skills.Add(FSoftClassPath(Skill->GetClass()));
+		}
+		RunProgress->GetPassiveLevels().GetKeys(Report.Passives);
+	}
+	return Report;
+}
+
+bool AMLRunGameMode::GetRequestStatus(FText& OutName, int32& OutProgress, int32& OutTarget, bool& bOutRoomFailed) const
+{
+	const UMLGuildSubsystem* Guild = GetGuild();
+	const FMLRequestRow* Request = Guild ? Guild->GetActiveRequest() : nullptr;
+	if (!Request) return false;
+
+	OutName = Request->Name;
+	OutProgress = UMLGuildSubsystem::GetRequestProgress(*Request, MakeRunReport(false));
+	OutTarget = Request->Target;
+	// 피해 없이 의뢰만: 이번 전투 방에서 맞으면 이 방은 실패
+	bOutRoomFailed = Request->Type == EMLRequestType::NoDamageRooms && bRoomHit && RunState == EMLRunState::Combat;
+	return true;
+}
+
+void AMLRunGameMode::HandleHeroHit()
+{
+	if (RunState != EMLRunState::Combat || bRoomHit) return;
+	bRoomHit = true;
+	OnRoomStateChanged.Broadcast(); // HUD 의뢰 줄 "실패"
 }
 
 bool AMLRunGameMode::HasPersonality(EMLPersonality Personality) const

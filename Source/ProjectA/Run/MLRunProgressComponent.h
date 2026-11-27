@@ -31,6 +31,7 @@ public:
 	void AddXP(float Amount);
 	void AddGold(int32 Amount);
 	int32 GetRunGold() const { return RunGold; }
+	bool HasShopSpent() const { return bShopSpent; } // design §8.5.1 (M9-5)
 	
 	// design §6.3: 지금 아이템 하나를 추첨 (Step 1..4); 탈출 전까지 미확보
 	void AddChest(int32 Step);
@@ -177,6 +178,7 @@ private:
 	int32 RunLevel = 1;
 	float RunXP = 0.f;
 	int32 RunGold = 0; // design §6.2: 탈출 전까지 미확보
+	bool bShopSpent = false; // 이번 원정에서 상점에서 산 적이 있음
 	TArray<FName> RunItems;     // DT_Items 행, 미확보
 	int32 RunItemTierTotal = 0;
 	TArray<FName> PendingGraveItems; // 레벨업이 열려 있어 미룬 묘비 선택

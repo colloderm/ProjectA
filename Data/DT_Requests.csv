@@ -9,3 +9,5 @@ r_gold2,황금 방 2개 클리어,GoldRooms,2,350,120,0,40
 r_eliteroom,정예 방 1개 클리어,EliteRooms,1,250,150,0,70
 r_greed3,탐욕 3단계 이상으로 탈출,Greed,3,400,150,0,50
 r_boss,보스 처치,BossKill,1,600,300,1,30
+r_nohit1,피해 없이 방 1개 클리어,NoDamageRooms,1,250,120,0,70
+r_frugal2,상점 지출 없이 2구역 도달 후 탈출,NoShopSpend,2,200,100,0,70

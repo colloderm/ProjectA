@@ -26,6 +26,7 @@ void UMLRunHUDWidget::InitHUD(UMLRunProgressComponent* InRunProgress)
 	InRunProgress->OnProgressChanged.AddUObject(this, &UMLRunHUDWidget::RefreshXP);
 	InRunProgress->OnSlotsChanged.AddUObject(this, &UMLRunHUDWidget::RefreshSlots);
 	InRunProgress->OnProgressChanged.AddUObject(this, &UMLRunHUDWidget::RefreshGold);
+	InRunProgress->OnProgressChanged.AddUObject(this, &UMLRunHUDWidget::RefreshRequest); // 탐욕·상점 구매
 
 	if (SlotIconClass)
 	{
@@ -38,17 +39,43 @@ void UMLRunHUDWidget::InitHUD(UMLRunProgressComponent* InRunProgress)
 		BoundRunMode = RunMode;
 		RunMode->OnRoomStateChanged.AddUObject(this, &UMLRunHUDWidget::RefreshRoom);
 		RunMode->OnRoomStateChanged.AddUObject(this, &UMLRunHUDWidget::RefreshDamagePanel);
+		RunMode->OnRoomStateChanged.AddUObject(this, &UMLRunHUDWidget::RefreshRequest); // 처치·방 종료·피격
 	}
 	PortalArrow->SetVisibility(ESlateVisibility::Collapsed);
 	GoblinArrow->SetVisibility(ESlateVisibility::Collapsed);
 	BossPanel->SetVisibility(ESlateVisibility::Collapsed);
 	DamagePanel->SetVisibility(ESlateVisibility::Collapsed);
 	ObjectiveText->SetVisibility(ESlateVisibility::Collapsed);
+	if (RequestText) RequestDefaultColor = RequestText->GetColorAndOpacity();
 
 	RefreshRoom();
 	RefreshXP();
 	RefreshSlots();
 	RefreshGold();
+	RefreshRequest();
+}
+
+void UMLRunHUDWidget::RefreshRequest()
+{
+	const AMLRunGameMode* RunMode = BoundRunMode.Get();
+	if (!RequestText) return;
+
+	FText Name;
+	int32 Progress = 0;
+	int32 Target = 0;
+	bool bRoomFailed = false;
+	if (!RunMode || !RunMode->GetRequestStatus(Name, Progress, Target, bRoomFailed))
+	{
+		RequestText->SetVisibility(ESlateVisibility::Collapsed);
+		return;
+	}
+
+	const FText State = bRoomFailed ? NSLOCTEXT("ML", "HUDRequestFailed", "실패")
+		: Progress >= Target ? NSLOCTEXT("ML", "HUDRequestDone", "완료")
+		: FText::Format(NSLOCTEXT("ML", "HUDRequestProgress", "{0} / {1}"), FText::AsNumber(Progress), FText::AsNumber(Target));
+	RequestText->SetText(FText::Format(NSLOCTEXT("ML", "HUDRequest", "의뢰 · {0}  {1}"), Name, State));
+	RequestText->SetColorAndOpacity(bRoomFailed ? FSlateColor(RequestFailColor) : RequestDefaultColor);
+	RequestText->SetVisibility(ESlateVisibility::HitTestInvisible);
 }
 
 void UMLRunHUDWidget::BuildRow(UHorizontalBox* Row, int32 SlotCount, TArray<TObjectPtr<UMLSlotIconWidget>>& OutSlots)

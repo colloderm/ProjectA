@@ -59,6 +59,11 @@ public:
 	// 보스 패널 HUD (보스 · 망령): 둘 다 없으면 false
 	bool GetBossHealth(float& OutPercent, FText& OutName) const;
 	int32 GetBossFightSeconds() const { return BossFightSeconds; }
+
+	// design §8.5.1 의뢰 (M9-5): 받은 의뢰의 원정 중 진행도. 의뢰가 없으면 false
+	bool GetRequestStatus(FText& OutName, int32& OutProgress, int32& OutTarget, bool& bOutRoomFailed) const;
+	// 영웅이 회피·무적을 지나 맞을 때마다 (AMLHeroCharacter::NotifyRunDamaged)
+	void HandleHeroHit();
 	bool IsBossDefeated() const { return bBossDefeated; }
 	
 	// design §6 HUD 피해 리포트 (M9-0): 마지막으로 끝난 전투 방; 안전 방 / 전투 중에는 비어 있음
@@ -122,6 +127,7 @@ private:
 	int32 GetRunGold() const;
 	UMLGuildSubsystem* GetGuild() const;
 	bool HasPersonality(EMLPersonality Personality) const; // design §7.3 (M9-4)
+	FMLRunReport MakeRunReport(bool bExtracted) const;     // 원정 끝(FinishRun)과 원정 중(의뢰 HUD) 공용
 
 	// --- 구조 (design §6.2) ---
 	UPROPERTY(EditDefaultsOnly, Category = "Run|Structure")
@@ -339,6 +345,8 @@ private:
 	bool bGhostWarned = false;							// 이 방에서 "강적 등장!" 안내를 시작함
 	bool bGhostDefeated = false;						// 이 방의 망령을 잡음, 장비 선택을 아직 열지 않음
 	int32 GhostSecondsLeft = 0;
+	bool bRoomHit = false;								// 이 방에서 영웅이 맞음 (피해 없는 방 의뢰)
+	int32 NoDamageRooms = 0;							// 한 번도 맞지 않고 끝낸 전투 방
 	FMLGrave RoomGrave;									// 이 방의 묘비 (저장 데이터의 복사본)
 	int32 ClearedGraveMercId = INDEX_NONE;				// 장비를 고른 묘비, 원정 종료 시 보고
 	int32 BossFightSeconds = 0;

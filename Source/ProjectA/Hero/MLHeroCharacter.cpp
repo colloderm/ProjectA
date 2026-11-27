@@ -240,6 +240,14 @@ void AMLHeroCharacter::ApplySlow(float SpeedMultiplier, float Duration)
 	}), FMath::Max(Remaining, FMath::Min(Duration, MaxSlowSeconds)), false);
 }
 
+void AMLHeroCharacter::NotifyRunDamaged()
+{
+	if (AMLRunGameMode* RunMode = GetWorld()->GetAuthGameMode<AMLRunGameMode>())
+	{
+		RunMode->HandleHeroHit();
+	}
+}
+
 bool AMLHeroCharacter::IsDead() const
 {
 	return HeroASC && HeroASC->HasMatchingGameplayTag(MLTags::State_Dead.GetTag());
