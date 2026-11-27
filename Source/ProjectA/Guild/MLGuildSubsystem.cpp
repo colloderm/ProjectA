@@ -79,19 +79,6 @@ namespace
 		return GI ? GI->GetSubsystem<UMLGuildSubsystem>() : nullptr;
 	}
 	
-	int32 RequestProgress(const FMLRequestRow& Request, const FMLRunReport& Report)
-	{
-		switch (Request.Type)
-		{
-		case EMLRequestType::ReachZone:  return Report.Zone;
-		case EMLRequestType::Kills:      return Report.Kills;
-		case EMLRequestType::EliteKills: return Report.EliteKills;
-		case EMLRequestType::BossKill:   return Report.bBossKilled ? 1 : 0;
-		case EMLRequestType::GoldRooms:  return Report.GoldRoomsCleared;
-		case EMLRequestType::EliteRooms: return Report.EliteRoomsCleared;
-		default:                         return Report.Greed;
-		}
-	}
 
 	// 개발 콘솔 (M8 길드 UI 전까지): PIE에서 ` 키
 	FAutoConsoleCommandWithWorldAndArgs GuildStatusCmd(TEXT("ML.Guild.Status"), TEXT("Log gold, merc, candidates, hall of fame"),
@@ -193,6 +180,12 @@ namespace
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			if (UMLGuildSubsystem* Guild = GetGuild(World); Guild && Args.Num() > 0) Guild->AddItem(FName(*Args[0]));
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs GuildSetRequestCmd(TEXT("ML.Guild.SetRequest"), TEXT("ML.Guild.SetRequest <DT_Requests row> (sets the active request, works during a run)"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (UMLGuildSubsystem* Guild = GetGuild(World); Guild && Args.Num() > 0) Guild->SetActiveRequest(FName(*Args[0]));
 		}));
 
 	FAutoConsoleCommandWithWorldAndArgs GuildSetTalentCmd(TEXT("ML.Guild.SetTalent"), TEXT("ML.Guild.SetTalent <DT_Talents row> (replaces the current merc's first talent, works during a run)"),
@@ -459,7 +452,7 @@ FMLRunReward UMLGuildSubsystem::EndRun(const FMLRunReport& Report)
 	if (const FMLRequestRow* Request = FindRequest(SaveData->ActiveRequest))
 	{
 		Reward.RequestName = Request->Name;
-		Reward.RequestProgress = RequestProgress(*Request, Report);
+		Reward.RequestProgress = GetRequestProgress(*Request, Report);
 		Reward.RequestTarget = Request->Target;
 		Reward.bRequestDone = Report.bExtracted && Reward.RequestProgress >= Request->Target;
 		if (Reward.bRequestDone)
@@ -1313,6 +1306,39 @@ void UMLGuildSubsystem::AddItem(FName ItemId)
 	const int32 SoldGold = AddToStash({ ItemId });
 	Save();
 	UE_LOG(LogTemp, Display, TEXT("[ML] Guild: item %s added (stash=%d autoSold=%d)"), *ItemId.ToString(), SaveData->Stash.Num(), SoldGold);
+}
+
+int32 UMLGuildSubsystem::GetRequestProgress(const FMLRequestRow& Request, const FMLRunReport& Report)
+{
+	switch (Request.Type)
+	{
+	case EMLRequestType::ReachZone:     return Report.Zone;
+	case EMLRequestType::Kills:         return Report.Kills;
+	case EMLRequestType::EliteKills:    return Report.EliteKills;
+	case EMLRequestType::BossKill:      return Report.bBossKilled ? 1 : 0;
+	case EMLRequestType::GoldRooms:     return Report.GoldRoomsCleared;
+	case EMLRequestType::EliteRooms:    return Report.EliteRoomsCleared;
+	case EMLRequestType::NoDamageRooms: return Report.NoDamageRooms;
+	case EMLRequestType::NoShopSpend:   return Report.bShopSpent ? 0 : Report.Zone;
+	default:                            return Report.Greed;
+	}
+}
+
+const FMLRequestRow* UMLGuildSubsystem::GetActiveRequest() const
+{
+	return SaveData ? FindRequest(SaveData->ActiveRequest) : nullptr;
+}
+
+void UMLGuildSubsystem::SetActiveRequest(FName RequestId)
+{
+	if (!SaveData || !FindRequest(RequestId))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ML] Guild: set request refused (unknown row %s)"), *RequestId.ToString());
+		return;
+	}
+	SaveData->ActiveRequest = RequestId;
+	Save();
+	UE_LOG(LogTemp, Display, TEXT("[ML] Guild: active request %s"), *RequestId.ToString());
 }
 
 bool UMLGuildSubsystem::HasPersonality(EMLPersonality Personality) const

@@ -244,7 +244,9 @@ enum class EMLRequestType : uint8
 	BossKill,    // 보스 처치 (Target 1)
 	GoldRooms,   // 처치한 황금 슬라임 >= Target
 	EliteRooms,  // 승리한 정예 방 (엘리트 전멸, 시간 초과는 제외) >= Target
-	Greed        // 종료 시 탐욕 단계 >= Target
+	Greed,       // 종료 시 탐욕 단계 >= Target
+	NoDamageRooms, // 한 번도 맞지 않고 끝낸 전투 방 >= Target (회피·무적은 안 맞음, 보호막에 막혀도 맞음) (M9-5)
+	NoShopSpend    // 상점에서 사지 않고 도달한 구역 >= Target, 사면 0 (M9-5)
 };
 
 // DT_Requests 행 (design §8.5.1)
@@ -332,6 +334,8 @@ struct FMLRunReport
 	int32 ClearedGraveMercId = INDEX_NONE; // design §6.2.3: 장비를 되찾은 묘비, 없으면 INDEX_NONE
 	TArray<FSoftClassPath> Skills;	// design §6.2.3: 전사하면 묘비에 남는 기술 / 패시브
 	TArray<FName> Passives;
+	int32 NoDamageRooms = 0;		// design §8.5.1 의뢰 (M9-5)
+	bool bShopSpent = false;
 };
 
 // 길드 → 결과 화면

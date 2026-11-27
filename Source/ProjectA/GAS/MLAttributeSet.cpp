@@ -68,6 +68,12 @@ void UMLAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallback
 	// design §7.2: DODGE는 타격 전체를 무효화
 	if (FMath::FRand() * 100.f < GetDodgeChance()) return;
 
+	// design §8.5.1 피해 없는 방 의뢰 (M9-5): 회피·무적을 지나 들어온 타격 (보호막에 막혀도 맞은 것)
+	if (AMLHeroCharacter* HitHero = Cast<AMLHeroCharacter>(TargetASC.GetAvatarActor()))
+	{
+		HitHero->NotifyRunDamaged();
+	}
+
 	// design §7.2: 피해 x 100/(100+DEF)
 	float FinalDamage = RawDamage * 100.f / (100.f + FMath::Max(0.f, GetDefense()));
 

@@ -775,6 +775,7 @@ void UMLRunProgressComponent::TradeShopItem(int32 Index)
 
 	const FMLShopItem Item = ShopItems[Index];
 	RunGold += IsShopSellItem(Index) ? Item.Price : -Item.Price; // design §6.2.2: 탐욕은 골드를 바로 따라감
+	if (!IsShopSellItem(Index)) bShopSpent = true; // design §8.5.1 상점 지출 없음 의뢰 (M9-5): 판매는 지출이 아님
 
 	switch (Item.Kind)
 	{
