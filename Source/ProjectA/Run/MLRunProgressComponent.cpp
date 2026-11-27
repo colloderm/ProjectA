@@ -557,8 +557,6 @@ void UMLRunProgressComponent::ApplyRestChoice(const FMLLevelUpChoice& Picked)
 		break;
 	case EMLRestAction::TakeItem:
 		AddRunItem(Picked.ItemId);
-		// MLVerify(M9-3): 다음 마일스톤에서 제거
-		UE_LOG(LogTemp, Display, TEXT("[MLVerify] Grave item: %s runItems=%d"), *Picked.ItemId.ToString(), RunItems.Num());
 		break;
 	default:
 		HealPercent(RestHealPercent);

@@ -472,14 +472,6 @@ FMLRunReward UMLGuildSubsystem::EndRun(const FMLRunReport& Report)
 	}
 	SaveData->ActiveRequest = NAME_None;
 
-	// MLVerify(M9-3): 다음 마일스톤에서 제거
-	FString GraveText;
-	for (const FMLGrave& Grave : SaveData->Graves)
-	{
-		GraveText += FString::Printf(TEXT("%d:%s zone=%d runs=%d; "), Grave.MercId, *Grave.Name, Grave.Zone, Grave.RunsLeft);
-	}
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Graves after run: extracted=%d cleared=%d [%s]"), Report.bExtracted ? 1 : 0, Report.ClearedGraveMercId, *GraveText.TrimEnd());
-
 	RefreshCandidates(); // design §8.1: 원정마다 새 후보
 	RefreshShop();       // design §8.4: 원정마다 새 상점 진열
 	RefreshRequests();   // design §8.5.1: 원정마다 새 의뢰판
@@ -782,15 +774,6 @@ bool UMLGuildSubsystem::LeaveGrave(const FMLMercData& Merc, int32 Zone, EMLAttac
 
 	const int32 Excess = SaveData->Graves.Num() - GetDefault<UMLGuildSettings>()->MaxGraves;
 	if (Excess > 0) SaveData->Graves.RemoveAt(0, Excess); // 가장 오래된 것부터
-
-	// MLVerify(M9-3): 다음 마일스톤에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Grave add: id=%d %s grade=%s weapon=%s zone=%d items=[%s] total=%d"), Grave.MercId, *Grave.Name,
-		*GradeName(Grave.Grade), *WeaponName(WeaponType), Zone,
-		*FString::JoinBy(Grave.Items, TEXT(","), [](const FName& Id) { return Id.ToString(); }), SaveData->Graves.Num());
-	// MLVerify(M9-3c): 다음 마일스톤에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Grave skills: [%s] passives: [%s]"),
-		*FString::JoinBy(Grave.Skills, TEXT(","), [](const FSoftClassPath& Path) { return Path.GetAssetName(); }),
-		*FString::JoinBy(Grave.Passives, TEXT(","), [](const FName& Id) { return Id.ToString(); }));
 	return true;
 }
 

@@ -225,8 +225,5 @@ void UMLAutoSkill::HostileStrike(const FVector& Center, float Radius, float Dama
 			EnemySub->DamageHeroBySkill(Damage);
 			if (SlowSeconds > 0.f) Hero->ApplySlow(SlowMultiplier, SlowSeconds);
 		}
-
-		// MLVerify(M9-3c): 다음 마일스톤에서 제거
-		UE_LOG(LogTemp, Display, TEXT("[MLVerify] Ghost skill strike: %s hit=%d radius=%.0f damage=%.1f"), *GetClass()->GetName(), bHit ? 1 : 0, Radius, Damage);
 	}), HostileStrikeDelay, false);
 }
