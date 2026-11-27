@@ -15,6 +15,7 @@
 #include "Hero/MLHeroCharacter.h"
 #include "Kismet/GameplayStatics.h"
 #include "Pickup/MLPickupSubsystem.h"
+#include "Run/MLChoiceArea.h"
 #include "Run/MLRoomGateActor.h"
 #include "Run/MLRunProgressComponent.h"
 #include "Skills/MLAutoSkill.h"
@@ -112,6 +113,7 @@ void AMLRunGameMode::BeginPlay()
 	{
 		ArenaCenter = Start->GetActorLocation();
 	}
+	ChoiceArea = Cast<AMLChoiceArea>(UGameplayStatics::GetActorOfClass(this, AMLChoiceArea::StaticClass())); // 없으면 예전 방식
 	if (UMLEnemySubsystem* EnemySub = GetWorld()->GetSubsystem<UMLEnemySubsystem>())
 	{
 		EnemySub->OnEnemyKilled.AddUObject(this, &AMLRunGameMode::HandleEnemyKilled);
@@ -492,6 +494,17 @@ void AMLRunGameMode::HandleGraveChosen()
 
 void AMLRunGameMode::OpenGates()
 {
+	// design §6.2 선택 구역 (M9-3e): 먼저 영웅을 옮기고, 도착한 뒤 다시 여기로 와서 포털을 엶
+	if (ChoiceArea && !bAtChoiceArea)
+	{
+		if (const APlayerController* PC = GetHeroPC(); PC && PC->PlayerCameraManager)
+		{
+			PC->PlayerCameraManager->StartCameraFade(0.f, 1.f, FadeSeconds, FLinearColor::Black, false, true);
+		}
+		GetWorldTimerManager().SetTimer(TransitionTimerHandle, this, &AMLRunGameMode::ArriveAtChoiceArea, FadeSeconds, false);
+		return;
+	}
+
 	const bool bLastRoom = IsLastRoomOfZone();
 	TArray<EMLRoomType> PortalTypes;
 	if (bLastRoom && IsLastZone())
@@ -509,6 +522,25 @@ void AMLRunGameMode::OpenGates()
 	GetWorldTimerManager().SetTimer(GateCheckTimerHandle, this, &AMLRunGameMode::GateCheckTick, GateCheckInterval, true);
 	
 	SetRunState(EMLRunState::Choosing);
+}
+
+void AMLRunGameMode::ArriveAtChoiceArea()
+{
+	if (RunState != EMLRunState::Collecting || !ChoiceArea) return; // 페이드 중에 원정이 끝남
+
+	bAtChoiceArea = true;
+	if (AMLHeroCharacter* Hero = GetHero())
+	{
+		Hero->SetActorLocation(ChoiceArea->GetActorLocation(), false, nullptr, ETeleportType::TeleportPhysics);
+	}
+	if (const APlayerController* PC = GetHeroPC(); PC && PC->PlayerCameraManager)
+	{
+		PC->PlayerCameraManager->StartCameraFade(1.f, 0.f, FadeSeconds, FLinearColor::Black);
+	}
+
+	// MLVerify(M9-3e): 다음 마일스톤에서 제거
+	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Choice area: zone=%d room=%d at %s"), CurrentZone, CurrentRoom, *ChoiceArea->GetActorLocation().ToString());
+	OpenGates();
 }
 
 void AMLRunGameMode::RollPortalTypes(bool bNextIsZoneStart, TArray<EMLRoomType>& OutTypes)
@@ -576,7 +608,7 @@ void AMLRunGameMode::SpawnGates(const TArray<EMLRoomType>& PortalTypes, bool bWi
 
 	// 포털 하나하나가 아니라 배치 전체를 옮겨서 모든 포털이 경기장 바닥 안에 있게 함.
 	FVector Anchor = HeroFloor;
-	if (Offsets.Num() > 0)
+	if (Offsets.Num() > 0 && !bAtChoiceArea) // 선택 구역은 경기장 밖이고 포털 자리가 비어 있음
 	{
 		const FBox Bounds(Offsets);
 		Anchor.X = FMath::Clamp(Anchor.X, ArenaCenter.X - ArenaHalfSize - Bounds.Min.X, ArenaCenter.X + ArenaHalfSize - Bounds.Max.X);
@@ -678,6 +710,9 @@ void AMLRunGameMode::BeginTransition(EMLRoomType NextRoomType)
 void AMLRunGameMode::CompleteTransition()
 {
 	ClearGates();
+	// design §6.2 선택 구역 (M9-3e): 휴식터·상점은 전투가 없으니 선택 구역에 머물러 그 자리에서 엶
+	const bool bSafeRoom = PendingRoomType == EMLRoomType::Rest || PendingRoomType == EMLRoomType::Shop;
+	bAtChoiceArea = ChoiceArea && bSafeRoom;
 
 	if (PendingRoomType == EMLRoomType::Boss)
 	{
@@ -695,7 +730,9 @@ void AMLRunGameMode::CompleteTransition()
 
 	if (AMLHeroCharacter* Hero = GetHero())
 	{
-		Hero->SetActorLocation(ArenaCenter, false, nullptr, ETeleportType::TeleportPhysics);
+		// 선택 구역에 머물 때는 가운데로: 다음 포털이 같은 자리에 나옴
+		const FVector Destination = bAtChoiceArea ? ChoiceArea->GetActorLocation() : ArenaCenter;
+		Hero->SetActorLocation(Destination, false, nullptr, ETeleportType::TeleportPhysics);
 	}
 
 	if (const APlayerController* PC = GetHeroPC(); PC && PC->PlayerCameraManager)

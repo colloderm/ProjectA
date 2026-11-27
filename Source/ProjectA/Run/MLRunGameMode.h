@@ -12,6 +12,7 @@ class AMLEnemyActor;
 class AMLBossActor;
 class AMLGhostActor;
 class AMLRoomGateActor;
+class AMLChoiceArea;
 class APlayerController;
 class UMLRunResultWidget;
 class UMLGuildSubsystem;
@@ -97,6 +98,7 @@ private:
 	void EndRoom();
 	void HandleGemsCollected();
 	void OpenGates();
+	void ArriveAtChoiceArea(); // design §6.2 선택 구역 (M9-3e)
 	void RollPortalTypes(bool bNextIsZoneStart, TArray<EMLRoomType>& OutTypes);
 	void SpawnGates(const TArray<EMLRoomType>& PortalTypes, bool bWithExitDoor);
 	AMLRoomGateActor* SpawnGate(TSubclassOf<AMLRoomGateActor> GateClass, const FVector& Location, EMLRoomType GateRoomType, bool bGateIsExitDoor);
@@ -287,6 +289,12 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<AMLGhostActor> GhostActor;
+
+	// 맵에 놓인 선택 구역, 없으면 nullptr (방이 끝난 자리 앞에 포털)
+	UPROPERTY(Transient)
+	TObjectPtr<AMLChoiceArea> ChoiceArea;
+
+	bool bAtChoiceArea = false; // 영웅이 선택 구역에 있음 (포털 선택 중)
 
 	FTimerHandle SpawnTimerHandle;
 	FTimerHandle GateCheckTimerHandle;
