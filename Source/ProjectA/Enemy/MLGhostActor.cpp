@@ -186,11 +186,6 @@ void AMLGhostActor::ExecuteAttack()
 	const bool bHit = IsHit(HeroLoc);
 	if (bHit) EnemySub->DamageHero(Damage);
 
-	// MLVerify(M9-3): 다음 마일스톤에서 제거
-	UE_LOG(LogTemp, Display, TEXT("[MLVerify] Ghost attack: weapon=%s hit=%d dist=%.0f damage=%.1f gap=%.2f"),
-		*StaticEnum<EMLAttackType>()->GetNameStringByValue(static_cast<int64>(WeaponType)), bHit ? 1 : 0,
-		FVector::Dist2D(HeroLoc, AttackOrigin), Damage, Gap);
-
 	GetWorldTimerManager().SetTimer(AttackTimerHandle, this, &AMLGhostActor::BeginAttack, Gap, false);
 }
 

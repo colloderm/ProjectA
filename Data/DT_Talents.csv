@@ -1,16 +1,21 @@
----,Name,Rarity,Weight,BonusPercent,Flat,Description
-berserker,광전사,Common,100,"(ATK=18,DEF=-8)","(HP=0)","ATK +18%, DEF -8%"
-guardian,수호자,Common,100,"(DEF=22,SPD=-5)","(HP=0)","DEF +22%, SPD -5%"
-swift,쾌속,Common,100,"(SPD=20)","(HP=0)","SPD +20%"
-vital,강인함,Common,100,"(HP=20)","(HP=0)","HP +20%"
-precise,정밀,Common,90,"(HP=0)","(CRIT=8)","CRIT +8"
-slippery,미꾸라지,Common,90,"(HP=0)","(DODGE=8)","DODGE +8"
-arcane,비전,Uncommon,60,"(HP=0)","(SPECIAL=12)","SPECIAL +12"
-bully,약자포식,Uncommon,55,"(ATK=12)","(CRIT=5)","ATK +12%, CRIT +5"
-ironwall,철벽,Uncommon,50,"(HP=10,DEF=18)","(HP=0)","HP +10%, DEF +18%"
-assassin,암살자,Uncommon,45,"(ATK=10)","(CRIT=10,DODGE=5)","ATK +10%, CRIT +10, DODGE +5"
-warlord,전쟁군주,Rare,25,"(HP=10,ATK=15,DEF=10)","(HP=0)","HP +10%, ATK +15%, DEF +10%"
-phantom,환영,Rare,20,"(SPD=15)","(DODGE=14)","SPD +15%, DODGE +14"
-overload,과부하,Rare,18,"(ATK=25)","(SPECIAL=10)","ATK +25%, SPECIAL +10"
-colossus,거인,Rare,16,"(HP=35,DEF=15,SPD=-10)","(HP=0)","HP +35%, DEF +15%, SPD -10%"
-legend,불멸의 전설,Legendary,6,"(HP=20,ATK=20,DEF=20,SPD=10)","(HP=0)","HP/ATK/DEF +20%, SPD +10%"
+---,Name,Rarity,Weight,BonusPercent,Flat,Description,Personality
+berserker,광전사,Common,100,"(ATK=18,DEF=-8)","(HP=0)","ATK +18%, DEF -8%",None
+guardian,수호자,Common,100,"(DEF=22,SPD=-5)","(HP=0)","DEF +22%, SPD -5%",None
+swift,쾌속,Common,100,"(SPD=20)","(HP=0)","SPD +20%",None
+vital,강인함,Common,100,"(HP=20)","(HP=0)","HP +20%",None
+precise,정밀,Common,90,"(HP=0)","(CRIT=8)","CRIT +8",None
+slippery,미꾸라지,Common,90,"(HP=0)","(DODGE=8)","DODGE +8",None
+arcane,비전,Uncommon,60,"(HP=0)","(SPECIAL=12)","SPECIAL +12",None
+bully,약자포식,Uncommon,55,"(ATK=12)","(CRIT=5)","ATK +12%, CRIT +5",None
+ironwall,철벽,Uncommon,50,"(HP=10,DEF=18)","(HP=0)","HP +10%, DEF +18%",None
+assassin,암살자,Uncommon,45,"(ATK=10)","(CRIT=10,DODGE=5)","ATK +10%, CRIT +10, DODGE +5",None
+warlord,전쟁군주,Rare,25,"(HP=10,ATK=15,DEF=10)","(HP=0)","HP +10%, ATK +15%, DEF +10%",None
+phantom,환영,Rare,20,"(SPD=15)","(DODGE=14)","SPD +15%, DODGE +14",None
+overload,과부하,Rare,18,"(ATK=25)","(SPECIAL=10)","ATK +25%, SPECIAL +10",None
+colossus,거인,Rare,16,"(HP=35,DEF=15,SPD=-10)","(HP=0)","HP +35%, DEF +15%, SPD -10%",None
+legend,불멸의 전설,Legendary,6,"(HP=20,ATK=20,DEF=20,SPD=10)","(HP=0)","HP/ATK/DEF +20%, SPD +10%",None
+greedy,탐욕가,Uncommon,60,"(ATK=5)","(HP=0)","성격: 황금 방이 더 자주 나오고 탐욕이 10% 빨리 오름. ATK +5%",Greedy
+hunter,추적자,Uncommon,60,"(HP=0)","(CRIT=4)","성격: 정예 방이 더 자주 나옴. CRIT +4",Hunter
+pilgrim,순례자,Uncommon,60,"(HP=8)","(HP=0)","성격: 휴식터가 더 자주 나옴. HP +8%",Pilgrim
+coward,겁쟁이,Uncommon,60,"(SPD=8)","(HP=0)","성격: 구역의 첫 방 뒤에도 탈출 문이 열림. SPD +8%",Coward
+scout,정찰병,Uncommon,60,"(HP=0)","(DODGE=4)","성격: 포털이 4개 열림. DODGE +4",Scout

@@ -195,6 +195,12 @@ namespace
 			if (UMLGuildSubsystem* Guild = GetGuild(World); Guild && Args.Num() > 0) Guild->AddItem(FName(*Args[0]));
 		}));
 
+	FAutoConsoleCommandWithWorldAndArgs GuildSetTalentCmd(TEXT("ML.Guild.SetTalent"), TEXT("ML.Guild.SetTalent <DT_Talents row> (replaces the current merc's first talent, works during a run)"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (UMLGuildSubsystem* Guild = GetGuild(World); Guild && Args.Num() > 0) Guild->SetFirstTalent(FName(*Args[0]));
+		}));
+
 	FAutoConsoleCommandWithWorldAndArgs GuildAddGraveCmd(TEXT("ML.Guild.AddGrave"), TEXT("ML.Guild.AddGrave <Zone> <sword|bow|staff> [Skill ...] (copies the current merc's equipment; Skill = BP_Skill_<name>, e.g. Blades)"),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
@@ -1307,6 +1313,31 @@ void UMLGuildSubsystem::AddItem(FName ItemId)
 	const int32 SoldGold = AddToStash({ ItemId });
 	Save();
 	UE_LOG(LogTemp, Display, TEXT("[ML] Guild: item %s added (stash=%d autoSold=%d)"), *ItemId.ToString(), SaveData->Stash.Num(), SoldGold);
+}
+
+bool UMLGuildSubsystem::HasPersonality(EMLPersonality Personality) const
+{
+	if (!SaveData || !SaveData->bHasMerc) return false;
+	return SaveData->Merc.Talents.ContainsByPredicate([this, Personality](const FName& Id)
+	{
+		const FMLTalentRow* Talent = FindTalent(Id);
+		return Talent && Talent->Personality == Personality;
+	});
+}
+
+void UMLGuildSubsystem::SetFirstTalent(FName TalentId)
+{
+	if (!SaveData || !SaveData->bHasMerc || !FindTalent(TalentId))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ML] Guild: set talent refused (no merc or unknown row %s)"), *TalentId.ToString());
+		return;
+	}
+
+	TArray<FName>& Talents = SaveData->Merc.Talents;
+	if (Talents.Num() == 0) Talents.Add(TalentId);
+	else Talents[0] = TalentId;
+	Save(); // shortcut: 원정 중에는 능력치를 다시 계산하지 않음 (경로 효과만 바로 바뀜)
+	UE_LOG(LogTemp, Display, TEXT("[ML] Guild: talents now %s"), *TalentsToString(Talents));
 }
 
 void UMLGuildSubsystem::AddGrave(int32 Zone, EMLAttackType WeaponType, const TArray<FSoftClassPath>& Skills)
